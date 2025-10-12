@@ -22,6 +22,7 @@ import ATSChecker from "./pages/Student/ATSChecker";
 import SettingsStudent from "./pages/Student/Settings";
 import NotFound from "./pages/NotFound";
 import Match from "./pages/Student/Match";
+import ResumeUpload from "./pages/Student/ResumeUpload";
 
 // Placement dashboard imports
 import { PlacementLayout } from "./components/layout/PlacementLayout";
@@ -44,8 +45,6 @@ import EligibilityCriteria from "./pages/Recruitment/EligibilityCriteria";
 import CommunicationRec from "./pages/Recruitment/Communication";
 import Reports from "./pages/Recruitment/Reports";
 import SettingsRec from "./pages/Recruitment/settingsRec";
-
-
 
 const queryClient = new QueryClient();
 
@@ -92,6 +91,7 @@ const App = () => (
 
             {/* 👨‍🎓 Student Dashboard Routes */}
             <Route path="/student/*" element={<AppContent />} />
+            <Route path="/student/resume-upload" element={<ResumeUpload />} />
             <Route path="/jobs" element={<AppContent />} />
             <Route path="/match" element={<AppContent />} />
             <Route path="/applied" element={<AppContent />} />
