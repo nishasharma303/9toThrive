@@ -29,7 +29,7 @@ export function AppSidebar() {
     <Sidebar className={state === "collapsed" ? "w-14" : "w-64"} collapsible="icon">
       <SidebarContent className="bg-sidebar-background">
         <div className="flex items-center gap-3 p-6 border-b border-sidebar-border">
-          {state !== "collapsed" && <span className="text-xl font-bold text-primary">9toThrive</span>}
+          {state !== "collapsed" && <span className="text-xl font-bold text-primary">Student</span>}
         </div>
 
         <SidebarGroup className="mt-4">

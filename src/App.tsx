@@ -7,6 +7,12 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AppSidebar } from "./components/AppSidebar";
 import { JobProvider } from "./contexts/JobContext";
 import Index from "./pages/Index";
+
+import { useEffect } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/firebaseConfig";
+
+// Student dashboard imports
 import Student from "./pages/Student/Student"; 
 import JobsStudent from "./pages/Student/Jobs";
 import AppliedJobs from "./pages/Student/AppliedJobs";
@@ -16,7 +22,6 @@ import ATSChecker from "./pages/Student/ATSChecker";
 import SettingsStudent from "./pages/Student/Settings";
 import NotFound from "./pages/NotFound";
 import Match from "./pages/Student/Match";
-
 
 // Placement dashboard imports
 import { PlacementLayout } from "./components/layout/PlacementLayout";
@@ -39,6 +44,8 @@ import EligibilityCriteria from "./pages/Recruitment/EligibilityCriteria";
 import CommunicationRec from "./pages/Recruitment/Communication";
 import Reports from "./pages/Recruitment/Reports";
 import SettingsRec from "./pages/Recruitment/settingsRec";
+
+
 
 const queryClient = new QueryClient();
 
