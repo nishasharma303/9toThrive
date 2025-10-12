@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { localMatchingService } from '@/pages/Recruitment/Services/localMatchingService';
+import { embeddingCache } from '@/pages/Recruitment/ml/embeddingCache';
 import {
   Calculator,
   Plus,
@@ -147,6 +149,16 @@ export default function MatchCalculator() {
     return true;
   };
 
+  const handleClearCache = () => {
+  localMatchingService.clearAllResults();
+  embeddingCache.clear();
+  
+  toast({
+    title: "Cache Cleared",
+    description: "All cached data and match results have been cleared",
+  });
+};
+
   const handleCalculateMatches = async () => {
     if (!validateForm()) return;
 
@@ -224,6 +236,14 @@ export default function MatchCalculator() {
                 </>
               )}
             </Button>
+
+            <Button
+  variant="outline"
+  onClick={handleClearCache}
+  className="text-xs"
+>
+  Clear Cache
+</Button>
           </div>
         }
       />

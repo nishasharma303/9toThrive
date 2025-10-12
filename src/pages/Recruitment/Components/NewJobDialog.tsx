@@ -31,7 +31,10 @@ import {
   IndianRupee,
   FileText,
   Eye,
-  CheckCircle2
+  CheckCircle2,
+  Users,
+  UserCheck,
+  EyeOff
 } from "lucide-react";
 
 interface NewJobDialogProps {
@@ -73,6 +76,13 @@ export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps
     priority: "Normal",
     screeningQuestions: "",
     isDraft: false,
+    
+    // New Visibility Settings
+    recruiterName: "",
+    recruiterEmail: "",
+    recruiterPhone: "",
+    recruiterVisible: true,
+    openingsVisible: true,
   });
 
   const handleSubmit = (isDraft: boolean = false) => {
@@ -100,6 +110,11 @@ export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps
       priority: "Normal",
       screeningQuestions: "",
       isDraft: false,
+      recruiterName: "",
+      recruiterEmail: "",
+      recruiterPhone: "",
+      recruiterVisible: true,
+      openingsVisible: true,
     });
     setCurrentTab("basic");
   };
@@ -246,6 +261,47 @@ export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps
               </div>
             </div>
 
+            {/* Recruiter Details Section */}
+            <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+              <h4 className="font-semibold flex items-center gap-2">
+                <UserCheck className="w-4 h-4" />
+                Recruiter Contact Details
+              </h4>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="recruiterName">Recruiter Name</Label>
+                  <Input
+                    id="recruiterName"
+                    placeholder="e.g. John Doe"
+                    value={formData.recruiterName}
+                    onChange={(e) => handleChange("recruiterName", e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="recruiterEmail">Recruiter Email</Label>
+                  <Input
+                    id="recruiterEmail"
+                    type="email"
+                    placeholder="recruiter@company.com"
+                    value={formData.recruiterEmail}
+                    onChange={(e) => handleChange("recruiterEmail", e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="recruiterPhone">Recruiter Phone</Label>
+                  <Input
+                    id="recruiterPhone"
+                    placeholder="+91 98765 43210"
+                    value={formData.recruiterPhone}
+                    onChange={(e) => handleChange("recruiterPhone", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end">
               <Button onClick={() => setCurrentTab("requirements")}>
                 Next: Requirements →
@@ -320,20 +376,74 @@ export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <Label htmlFor="salaryVisible" className="font-semibold">
-                  Show Salary to Candidates
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Display salary range in the job posting
-                </p>
+            {/* Visibility Settings Section */}
+            <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+              <h4 className="font-semibold flex items-center gap-2 mb-2">
+                <Eye className="w-4 h-4" />
+                Visibility Settings
+              </h4>
+              
+              <div className="space-y-3">
+                {/* Salary Visibility */}
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                  <div className="flex items-center gap-3">
+                    <IndianRupee className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="salaryVisible" className="font-medium cursor-pointer">
+                        Show Salary Range
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Display ₹{formData.salaryMin || "XX"}-{formData.salaryMax || "XX"} LPA to candidates
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="salaryVisible"
+                    checked={formData.salaryVisible}
+                    onCheckedChange={(checked) => handleChange("salaryVisible", checked)}
+                  />
+                </div>
+
+                {/* Recruiter Details Visibility */}
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                  <div className="flex items-center gap-3">
+                    <UserCheck className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="recruiterVisible" className="font-medium cursor-pointer">
+                        Show Recruiter Details
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Display recruiter contact information to candidates
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="recruiterVisible"
+                    checked={formData.recruiterVisible}
+                    onCheckedChange={(checked) => handleChange("recruiterVisible", checked)}
+                  />
+                </div>
+
+                {/* Number of Openings Visibility */}
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                  <div className="flex items-center gap-3">
+                    <Users className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="openingsVisible" className="font-medium cursor-pointer">
+                        Show Number of Openings
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Display "{formData.openings || "X"} position{parseInt(formData.openings) !== 1 ? 's' : ''} available" to candidates
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="openingsVisible"
+                    checked={formData.openingsVisible}
+                    onCheckedChange={(checked) => handleChange("openingsVisible", checked)}
+                  />
+                </div>
               </div>
-              <Switch
-                id="salaryVisible"
-                checked={formData.salaryVisible}
-                onCheckedChange={(checked) => handleChange("salaryVisible", checked)}
-              />
             </div>
 
             <div className="flex justify-between">
@@ -454,18 +564,48 @@ export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps
                   <p className="text-lg text-muted-foreground mb-4">
                     {formData.company || "Company Name"}
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  
+                  {/* Badges Section */}
+                  <div className="flex flex-wrap gap-2 mb-4">
                     <Badge variant="outline">{formData.department || "Department"}</Badge>
-                    <Badge variant="outline">{formData.location || "Location"}</Badge>
+                    <Badge variant="outline">
+                      <MapPin className="w-3 h-3 mr-1" />
+                      {formData.location || "Location"}
+                    </Badge>
                     <Badge variant="outline">{formData.workMode}</Badge>
                     <Badge variant="outline">{formData.jobType}</Badge>
                     <Badge variant="outline">{formData.experience || "Experience"}</Badge>
+                    
+                    {/* Conditional Badges */}
                     {formData.salaryVisible && (
                       <Badge variant="default" className="bg-green-600">
+                        <IndianRupee className="w-3 h-3 mr-1" />
                         ₹{formData.salaryMin || "XX"}-{formData.salaryMax || "XX"} LPA
                       </Badge>
                     )}
+                    
+                    {formData.openingsVisible && (
+                      <Badge variant="secondary">
+                        <Users className="w-3 h-3 mr-1" />
+                        {formData.openings} opening{parseInt(formData.openings) !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
                   </div>
+
+                  {/* Hidden Items Notice */}
+                  {(!formData.salaryVisible || !formData.recruiterVisible || !formData.openingsVisible) && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+                      <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                        <EyeOff className="w-4 h-4" />
+                        <span className="text-sm font-medium">Hidden from candidates:</span>
+                      </div>
+                      <ul className="text-sm text-amber-700 dark:text-amber-300 mt-1 ml-6">
+                        {!formData.salaryVisible && <li>• Salary range</li>}
+                        {!formData.recruiterVisible && <li>• Recruiter contact details</li>}
+                        {!formData.openingsVisible && <li>• Number of openings</li>}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {formData.description && (
@@ -514,6 +654,18 @@ export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps
                     <p className="text-muted-foreground whitespace-pre-line">
                       {formData.benefits}
                     </p>
+                  </div>
+                )}
+
+                {/* Recruiter Contact Section (if visible) */}
+                {formData.recruiterVisible && formData.recruiterName && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold text-lg mb-2">Contact Recruiter</h3>
+                    <div className="space-y-1 text-muted-foreground">
+                      {formData.recruiterName && <p>Name: {formData.recruiterName}</p>}
+                      {formData.recruiterEmail && <p>Email: {formData.recruiterEmail}</p>}
+                      {formData.recruiterPhone && <p>Phone: {formData.recruiterPhone}</p>}
+                    </div>
                   </div>
                 )}
               </div>

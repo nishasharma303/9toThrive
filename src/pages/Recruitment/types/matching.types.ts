@@ -1,4 +1,3 @@
-// src/types/matching.types.ts
 
 export interface JobCriteria {
   id?: string;
@@ -29,6 +28,7 @@ export interface CandidateProfile {
   resume?: string;
   phssScore?: number;
   avatar?: string;
+  bio?: string; // ⭐ ADD THIS for better SBERT matching
 }
 
 export interface Project {
@@ -53,6 +53,7 @@ export interface MatchResult {
   aiInsights?: string;
   rank?: number;
   status: 'new' | 'reviewed' | 'shortlisted' | 'rejected';
+  semanticSimilarity?: number; // ⭐ NEW: 0-100 score from SBERT
 }
 
 export interface MatchRequest {
@@ -61,12 +62,13 @@ export interface MatchRequest {
 }
 
 export interface MatchResponse {
-  success: boolean;
+  success?: boolean;
   jobId: string;
   results: MatchResult[];
   totalCandidates: number;
   executionTime: number;
-  timestamp: Date;
+  timestamp: string | Date;
+  criteria?: JobCriteria; // ⭐ ADD THIS
 }
 
 export interface MatchStatus {
