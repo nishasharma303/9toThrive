@@ -1,5 +1,13 @@
-import React, { useState } from "react";
+import React, { useState , useEffect} from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
+import { auth } from "@/firebaseConfig"; // your firebase config file
+import { db } from "@/firebaseConfig";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+
 import {
   Dialog,
   DialogTrigger,
@@ -8,7 +16,6 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,76 +30,111 @@ export default function SignInDialog({ trigger }: Props) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const form = e.currentTarget as HTMLFormElement;
-    const data = new FormData(form);
+  useEffect(() => {
+  setErrorMsg("");
+}, [mode]);
 
-  // useNavigate is available as `navigate` from hook above
+  async function onSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  const form = e.currentTarget as HTMLFormElement;
+  const data = new FormData(form);
+  const email = String(data.get("email") || "");
+  const password = String(data.get("password") || "");
 
+  try {
     if (mode === "signin") {
-      const payload = {
-        email: String(data.get("email") || ""),
-        password: String(data.get("password") || ""),
+      // 🔹 Sign in existing user
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 🔹 Fetch their role from Firestore
+      const userRef = doc(db, "users", user.uid);
+      const snap = await getDoc(userRef);
+
+      if (snap.exists()) {
+        const userData = snap.data();
+        const role = userData.role;
+        console.log("✅ Logged in as", role);
+
+        // route based on role
+        if (role === "student") navigate("/student", { replace: true });
+        else if (role === "recruiter") navigate("/recruitment", { replace: true });
+        else navigate("/placement", { replace: true });
+      } else {
+        console.log("⚠️ No role found in Firestore!");
+      }
+    } 
+    else {
+      // 🔹 Sign up new user
+      const confirm = String(data.get("confirmPassword") || "");
+      if (password !== confirm) return alert("Passwords do not match");
+
+      const name = String(data.get("name") || "");
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 🔹 Store user role & name in Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        name,
+        email,
         role,
-      };
-      // TODO: call sign-in API
-      console.log("Sign in payload:", payload);
-      setOpen(false);
+        createdAt: new Date().toISOString(),
+      });
+
+      console.log("✅ Account created with role:", role);
+
       // route based on role
       if (role === "student") navigate("/student", { replace: true });
       else if (role === "recruiter") navigate("/recruitment", { replace: true });
       else navigate("/placement", { replace: true });
-    } else {
-      const password = String(data.get("password") || "");
-      const confirm = String(data.get("confirmPassword") || "");
-      if (password !== confirm) {
-        // Basic client-side validation
-        alert("Passwords do not match");
-        return;
-      }
-      const payload = {
-        name: String(data.get("name") || ""),
-        email: String(data.get("email") || ""),
-        password,
-        role,
-      };
-      // TODO: call sign-up API
-      console.log("Sign up payload:", payload);
-      setOpen(false);
-      // route to appropriate dashboard after sign up
-      if (role === "student") navigate("/student", { replace: true });
-      else if (role === "recruiter") navigate("/recruitment", { replace: true });
-      else navigate("/placement", { replace: true });
     }
+
+    setOpen(false);
+  } catch (error: any) {
+  console.error("❌ Auth error:", error.message);
+  let msg = "";
+
+  switch (error.code) {
+    case "auth/user-not-found":
+      msg = "No account found with this email. Please sign up first.";
+      break;
+    case "auth/email-already-in-use":
+      msg = "This email is already registered. Please sign in instead.";
+      break;
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      msg = "Invalid email or password. Please check your credentials and try again.";
+      break;
+    case "auth/too-many-requests":
+      msg = "Too many failed attempts. Please wait a few minutes before trying again.";
+      break;
+    case "auth/invalid-email":
+      msg = "Please enter a valid email address.";
+      break;
+    default:
+      msg = "Something went wrong. Please try again later.";
+  }
+
+  setErrorMsg(msg);
+}
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Sign In to 9toThrive</DialogTitle>
+          <DialogTitle>{mode === "signin" ? "Sign In" : "Create Account"}</DialogTitle>
           <DialogDescription>
-            Choose a role and sign in to access your dashboard.
+            {mode === "signin"
+              ? "Access your 9toThrive dashboard."
+              : "Create an account to get started."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4 mt-2">
-          {/* Switcher link */}
-          <div className="flex justify-end">
-            {mode === "signin" ? (
-              <button type="button" className="text-sm underline" onClick={() => setMode("signup")}>
-                Create an account
-              </button>
-            ) : (
-              <button type="button" className="text-sm underline" onClick={() => setMode("signin")}>
-                Already have an account?
-              </button>
-            )}
-          </div>
           {mode === "signup" && (
             <div>
               <label className="block text-sm mb-1">Full name</label>
@@ -107,7 +149,7 @@ export default function SignInDialog({ trigger }: Props) {
 
           <div>
             <label className="block text-sm mb-1">Password</label>
-            <Input name="password" type="password" placeholder="Enter your password" required />
+            <Input name="password" type="password" placeholder="Enter password" required />
           </div>
 
           {mode === "signup" && (
@@ -119,23 +161,25 @@ export default function SignInDialog({ trigger }: Props) {
 
           <div>
             <label className="block text-sm mb-2">Role</label>
-            <RadioGroup value={role} onValueChange={setRole} className="flex items-center gap-6">
+            <RadioGroup value={role} onValueChange={setRole} className="flex gap-4">
               <label className="inline-flex items-center gap-2">
                 <RadioGroupItem value="student" />
                 <span className="text-sm">Student</span>
               </label>
-
               <label className="inline-flex items-center gap-2">
                 <RadioGroupItem value="recruiter" />
                 <span className="text-sm">Recruiter</span>
               </label>
-
               <label className="inline-flex items-center gap-2">
                 <RadioGroupItem value="placement" />
                 <span className="text-sm">Placement Cell</span>
               </label>
             </RadioGroup>
           </div>
+
+          {errorMsg && (
+            <p className="text-sm text-red-500 text-center">{errorMsg}</p>
+            )}
 
           <DialogFooter className="flex justify-end gap-2">
             {mode === "signin" ? (
@@ -147,7 +191,9 @@ export default function SignInDialog({ trigger }: Props) {
               </>
             ) : (
               <>
-                <Button variant="ghost" type="button" onClick={() => setMode("signin")}>Already have an account?</Button>
+                <Button variant="ghost" type="button" onClick={() => setMode("signin")}>
+                  Already have an account?
+                </Button>
                 <Button type="submit">Create Account</Button>
               </>
             )}
