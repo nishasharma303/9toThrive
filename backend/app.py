@@ -11,8 +11,6 @@ import asyncio
 
 app = FastAPI()
 
-hf_token = "hf_xxx"  # Replace with your Hugging Face token if needed
-
 # Allow your frontend origin (change to your domain in production)
 app.add_middleware(
     CORSMiddleware,
