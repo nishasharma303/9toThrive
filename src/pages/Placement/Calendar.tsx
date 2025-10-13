@@ -3,148 +3,131 @@ import { PageHeader } from "@/components/Placement/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, isWithinInterval } from "date-fns";
 import { AddEventDialog } from "@/components/Placement/AddEventDialog";
+import { db } from "@/firebaseConfig";
+import { collection, query, orderBy, onSnapshot, Timestamp, addDoc } from "firebase/firestore";
 
-interface Job {
+export interface Job {
   id: string;
   title: string;
   company: string;
-  scheduled_date: string | null;
+  role: string;
+  description?: string;
+  applicants: number;
   status: string;
+  salary?: string;
+  location?: string;
+  scheduled_at: Timestamp;
+  created_at?: Timestamp;
+  updated_at?: Timestamp;
 }
 
-interface CalendarEvent {
+export interface CalendarEvent {
   id: string;
   title: string;
-  description: string | null;
-  event_date: string;
+  description?: string;
+  event_date: Timestamp | string;
   event_type: string;
+  created_at?: Timestamp;
+  updated_at?: Timestamp;
 }
 
 export default function CalendarPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
 
+  const toDate = (date: Timestamp | string) => (date instanceof Timestamp ? date.toDate() : new Date(date));
+
   useEffect(() => {
-    fetchJobs();
-    fetchEvents();
+    const jobsQuery = query(collection(db, "jobs"), orderBy("scheduled_at", "asc"));
+    const eventsQuery = query(collection(db, "calendar_events"), orderBy("event_date", "asc"));
 
-    const jobsChannel = supabase
-      .channel('jobs-calendar-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => {
-        fetchJobs();
-      })
-      .subscribe();
+    const unsubJobs = onSnapshot(
+      jobsQuery,
+      (snapshot) => {
+        setJobs(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Job[]);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Jobs fetch error:", error);
+        toast.error(`Failed to fetch jobs: ${error.message}`);
+        setLoading(false);
+      }
+    );
 
-    const eventsChannel = supabase
-      .channel('events-calendar-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events' }, () => {
-        fetchEvents();
-      })
-      .subscribe();
+    const unsubEvents = onSnapshot(
+      eventsQuery,
+      (snapshot) => setEvents(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as CalendarEvent[]),
+      (error) => {
+        console.error("Events fetch error:", error);
+        toast.error(`Failed to fetch events: ${error.message}`);
+      }
+    );
 
     return () => {
-      supabase.removeChannel(jobsChannel);
-      supabase.removeChannel(eventsChannel);
+      unsubJobs();
+      unsubEvents();
     };
   }, []);
 
-  const fetchJobs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .not('scheduled_date', 'is', null)
-        .order('scheduled_date', { ascending: true });
-
-      if (error) throw error;
-      setJobs((data || []) as Job[]);
-    } catch (error: any) {
-      toast.error(`Failed to fetch jobs: ${error.message}`);
-    } finally {
-      setLoading(false);
+  const handleEventAdded = async (newEvent: {
+    title: string;
+    description?: string;
+    event_type: string;
+    event_date: string | Date | Timestamp;
+  }) => {
+    if (!newEvent.title || !newEvent.event_type || !newEvent.event_date) {
+      toast.error("Please provide title, type, and date.");
+      return;
     }
-  };
 
-  const fetchEvents = async () => {
+    const eventTimestamp =
+      newEvent.event_date instanceof Timestamp
+        ? newEvent.event_date
+        : newEvent.event_date instanceof Date
+        ? Timestamp.fromDate(newEvent.event_date)
+        : Timestamp.fromDate(new Date(newEvent.event_date));
+
     try {
-      const { data, error } = await supabase
-        .from('calendar_events')
-        .select('*')
-        .order('event_date', { ascending: true });
-
-      if (error) throw error;
-      setEvents((data || []) as CalendarEvent[]);
-    } catch (error: any) {
-      toast.error(`Failed to fetch events: ${error.message}`);
-    }
-  };
-
-  const handleEventAdded = async (newEvent: any) => {
-    try {
-      const { error } = await supabase.from('calendar_events').insert({
+      await addDoc(collection(db, "calendar_events"), {
         title: newEvent.title,
-        description: newEvent.description,
-        event_date: newEvent.event_date,
+        description: newEvent.description || "",
         event_type: newEvent.event_type,
+        event_date: eventTimestamp,
+        created_at: Timestamp.now(),
       });
-
-      if (error) throw error;
       toast.success("Event added successfully!");
-      fetchEvents();
-    } catch (error: any) {
-      toast.error(`Failed to add event: ${error.message}`);
+    } catch (error) {
+      console.error("Add event error:", error);
+      toast.error(`Failed to add event: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
-  const eventsOnSelectedDate = selectedDate
-    ? events.filter(event => {
-        const eventDate = new Date(event.event_date);
-        return (
-          eventDate.getDate() === selectedDate.getDate() &&
-          eventDate.getMonth() === selectedDate.getMonth() &&
-          eventDate.getFullYear() === selectedDate.getFullYear()
-        );
-      })
-    : [];
+  const isSameDate = (d1: Date, d2: Date) =>
+    d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 
-  const jobsOnSelectedDate = selectedDate
-    ? jobs.filter(job => {
-        if (!job.scheduled_date) return false;
-        const jobDate = new Date(job.scheduled_date);
-        return (
-          jobDate.getDate() === selectedDate.getDate() &&
-          jobDate.getMonth() === selectedDate.getMonth() &&
-          jobDate.getFullYear() === selectedDate.getFullYear()
-        );
-      })
-    : [];
-
+  const eventsOnSelectedDate = events.filter((e) => isSameDate(toDate(e.event_date), selectedDate));
+  const jobsOnSelectedDate = jobs.filter((j) => isSameDate(toDate(j.scheduled_at), selectedDate));
   const allEventsOnSelectedDate = [...eventsOnSelectedDate, ...jobsOnSelectedDate];
 
-  const datesWithEvents = [
-    ...jobs.filter(job => job.scheduled_date).map(job => new Date(job.scheduled_date!)),
-    ...events.map(event => new Date(event.event_date))
-  ];
+  const datesWithEvents = [...jobs.map((j) => toDate(j.scheduled_at)), ...events.map((e) => toDate(e.event_date))];
 
-  // Get this week's events
   const today = new Date();
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
 
-  const thisWeeksEvents = [
-    ...jobs.filter(job => job.scheduled_date && isWithinInterval(new Date(job.scheduled_date), { start: weekStart, end: weekEnd })),
-    ...events.filter(event => isWithinInterval(new Date(event.event_date), { start: weekStart, end: weekEnd }))
-  ].sort((a, b) => {
-    const dateA = new Date('scheduled_date' in a ? a.scheduled_date! : a.event_date);
-    const dateB = new Date('scheduled_date' in b ? b.scheduled_date! : b.event_date);
-    return dateA.getTime() - dateB.getTime();
-  });
+  const thisWeeksEvents = [...jobs, ...events]
+    .map((item) => ({
+      item,
+      date: "scheduled_at" in item ? toDate((item as Job).scheduled_at) : toDate((item as CalendarEvent).event_date),
+    }))
+    .filter(({ date }) => isWithinInterval(date, { start: weekStart, end: weekEnd }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map(({ item }) => item);
 
   return (
     <div className="p-8">
@@ -159,22 +142,15 @@ export default function CalendarPage() {
           <Calendar
             mode="single"
             selected={selectedDate}
-            onSelect={setSelectedDate}
+            onSelect={(date) => date && setSelectedDate(date)}
             className="rounded-md border"
-            modifiers={{
-              hasEvent: datesWithEvents
-            }}
-            modifiersClassNames={{
-              hasEvent: "bg-primary/20 font-bold"
-            }}
+            modifiers={{ hasEvent: datesWithEvents }}
+            modifiersClassNames={{ hasEvent: "bg-primary/20 font-bold" }}
           />
         </Card>
 
         <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">
-            {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'Select a date'}
-          </h3>
-          
+          <h3 className="text-lg font-semibold mb-4">{format(selectedDate, "MMMM d, yyyy")}</h3>
           {loading ? (
             <div className="text-center py-4 text-muted-foreground">Loading...</div>
           ) : allEventsOnSelectedDate.length > 0 ? (
@@ -185,35 +161,24 @@ export default function CalendarPage() {
                     <h4 className="font-medium">{event.title}</h4>
                     <Badge variant="outline">{event.event_type}</Badge>
                   </div>
-                  {event.description && (
-                    <p className="text-sm text-muted-foreground mb-1">{event.description}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(event.event_date), 'h:mm a')}
-                  </p>
+                  {event.description && <p className="text-sm text-muted-foreground mb-1">{event.description}</p>}
+                  <p className="text-xs text-muted-foreground">{format(toDate(event.event_date), "h:mm a")}</p>
                 </Card>
               ))}
               {jobsOnSelectedDate.map((job) => (
                 <Card key={job.id} className="p-4 hover:bg-muted/50 transition-colors">
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-medium">{job.title}</h4>
-                    <Badge variant={job.status === 'active' ? 'default' : 'secondary'}>
-                      Interview
-                    </Badge>
+                    <Badge variant={job.status.toLowerCase() === "active" ? "default" : "secondary"}>Interview</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">{job.company}</p>
-                  {job.scheduled_date && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {format(new Date(job.scheduled_date), 'h:mm a')}
-                    </p>
-                  )}
+                  {job.description && <p className="text-sm text-muted-foreground mb-1">{job.description}</p>}
+                  <p className="text-xs text-muted-foreground mt-1">{format(toDate(job.scheduled_at), "h:mm a")}</p>
                 </Card>
               ))}
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm">
-              No events scheduled for this date
-            </p>
+            <p className="text-muted-foreground text-sm">No events scheduled for this date</p>
           )}
         </Card>
       </div>
@@ -223,29 +188,28 @@ export default function CalendarPage() {
         <div className="space-y-2">
           {thisWeeksEvents.length > 0 ? (
             thisWeeksEvents.map((item) => {
-              const isJob = 'scheduled_date' in item;
-              const eventDate = isJob ? item.scheduled_date : item.event_date;
-              
+              const isJob = "scheduled_at" in item;
+              const date = isJob ? toDate((item as Job).scheduled_at) : toDate((item as CalendarEvent).event_date);
               return (
-                <div key={item.id} className="flex justify-between items-center py-3 px-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                <div
+                  key={item.id}
+                  className="flex justify-between items-center py-3 px-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
                   <div className="flex-1">
-                    <p className="font-medium">{isJob ? item.title : item.title}</p>
+                    <p className="font-medium">{item.title}</p>
                     <p className="text-sm text-muted-foreground">
-                      {isJob ? item.company : item.event_type}
+                      {isJob ? (item as Job).company : (item as CalendarEvent).event_type}
                     </p>
+                    {isJob && (item as Job).description && (
+                      <p className="text-sm text-muted-foreground">{(item as Job).description}</p>
+                    )}
                   </div>
-                  {eventDate && (
-                    <Badge variant="outline" className="ml-2">
-                      {format(new Date(eventDate), 'EEE, MMM d, h:mm a')}
-                    </Badge>
-                  )}
+                  <Badge variant="outline" className="ml-2">{format(date, "EEE, MMM d, h:mm a")}</Badge>
                 </div>
               );
             })
           ) : (
-            <p className="text-center text-muted-foreground py-4">
-              No events this week
-            </p>
+            <p className="text-center text-muted-foreground py-4">No events this week</p>
           )}
         </div>
       </Card>

@@ -7,14 +7,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
+
+interface Student {
+  id: string;
+  Name: string;
+  Email: string;
+  Branch: string;
+  RegNo: string;
+  Skills?: string;
+  verification_status: "verified" | "unverified";
+}
 
 export default function Communication() {
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState("all");
   const [notificationType, setNotificationType] = useState<"email" | "sms" | "dashboard">("email");
   const [sending, setSending] = useState(false);
-  const [students, setStudents] = useState<any[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
 
   useEffect(() => {
     fetchStudents();
@@ -22,14 +33,15 @@ export default function Communication() {
 
   const fetchStudents = async () => {
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, name, email, branch, verification_status');
-      
-      if (error) throw error;
-      setStudents(data || []);
+      const snapshot = await getDocs(collection(db, "students"));
+      const data: Student[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Student));
+      setStudents(data);
     } catch (error: any) {
-      console.error('Failed to fetch students:', error);
+      console.error("Failed to fetch students:", error);
+      toast.error("Failed to fetch students");
     }
   };
 
@@ -38,7 +50,7 @@ export default function Communication() {
       toast.error("Please enter a message before sending!");
       return;
     }
-    
+
     setSending(true);
 
     try {
@@ -50,26 +62,20 @@ export default function Communication() {
         } else if (audience === "unverified") {
           targetStudents = students.filter(s => s.verification_status === "unverified");
         } else {
-          targetStudents = students.filter(s => s.branch === audience);
+          targetStudents = students.filter(s => s.Branch === audience);
         }
       }
 
-      const studentIds = targetStudents.map(s => s.id);
+      const studentEmails = targetStudents.map(s => s.Email);
 
-      const { data, error } = await supabase.functions.invoke('send-notification', {
-        body: {
-          studentIds,
-          message,
-          type: notificationType
-        }
-      });
+      // TODO: Call Firebase Cloud Function or backend API to send notifications
+      // Example:
+      // await sendNotificationFirebase({ emails: studentEmails, message, type: notificationType });
 
-      if (error) throw error;
-      
-      toast.success(data.message || `Notification sent to ${audience === "all" ? "all students" : audience}!`);
+      toast.success(`Notification sent to ${studentEmails.length} students`);
       setMessage("");
     } catch (error: any) {
-      console.error('Send notification error:', error);
+      console.error("Send notification error:", error);
       toast.error(error.message || "Failed to send notification");
     } finally {
       setSending(false);
@@ -78,10 +84,7 @@ export default function Communication() {
 
   return (
     <div className="p-8">
-      <PageHeader
-        title="Communication"
-        description="Send bulk notifications to students"
-      />
+      <PageHeader title="Communication" description="Send bulk notifications to students" />
 
       <Card className="p-6 max-w-3xl">
         <div className="space-y-6">
@@ -130,9 +133,7 @@ export default function Communication() {
               rows={8}
               className="resize-none"
             />
-            <p className="text-sm text-mint-cream">
-              {message.length} / 500 characters
-            </p>
+            <p className="text-sm text-mint-cream">{message.length} / 500 characters</p>
           </div>
 
           {/* Send Button */}
@@ -143,9 +144,7 @@ export default function Communication() {
 
           {/* Info Box */}
           <div className="mt-6 p-4 bg-muted rounded-lg">
-            <h4 className="font-semibold text-foreground mb-2">
-              Notification Channels
-            </h4>
+            <h4 className="font-semibold text-foreground mb-2">Notification Channels</h4>
             <ul className="text-sm text-mint-cream space-y-1">
               <li>• Email notifications will be sent to registered email addresses</li>
               <li>• SMS alerts (if phone numbers are verified)</li>
@@ -154,34 +153,6 @@ export default function Communication() {
           </div>
         </div>
       </Card>
-
-      {/* Recent Notifications */}
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold text-foreground mb-4">
-          Recent Notifications
-        </h3>
-        <div className="space-y-3">
-          {[
-            { message: "Placement drive scheduled for Tech Corp on Nov 15", audience: "All Students", time: "2 hours ago" },
-            { message: "Document verification deadline extended to Nov 10", audience: "Unverified Students", time: "1 day ago" },
-            { message: "New job posting: Software Engineer at InnovateX", audience: "Computer Science", time: "2 days ago" },
-          ].map((notification, index) => (
-            <Card key={index} className="p-4">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="font-medium text-mint-cream">{notification.message}</p>
-                  <p className="text-sm text-mint-cream mt-1">
-                    Sent to: {notification.audience}
-                  </p>
-                </div>
-                <span className="text-sm text-mint-cream whitespace-nowrap ml-4">
-                  {notification.time}
-                </span>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

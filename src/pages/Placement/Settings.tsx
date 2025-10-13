@@ -4,11 +4,29 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+
+// ✅ Firebase imports
+import { db } from "@/firebaseConfig";
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+} from "firebase/firestore";
 
 interface PlacementOfficer {
   id: string;
@@ -21,40 +39,27 @@ interface PlacementOfficer {
 export default function Settings() {
   const [officers, setOfficers] = useState<PlacementOfficer[]>([]);
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
-    assigned_companies: ""
+    assigned_companies: "",
   });
 
+  // ✅ Realtime Firestore listener
   useEffect(() => {
-    fetchOfficers();
+    const q = query(collection(db, "placement_off"), orderBy("created_at", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as PlacementOfficer[];
+      setOfficers(list);
+    });
 
-    const channel = supabase
-      .channel('officers-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'placement_officers' }, () => {
-        fetchOfficers();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => unsubscribe();
   }, []);
-
-  const fetchOfficers = async () => {
-    const { data, error } = await supabase
-      .from('placement_officers')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast.error(`Failed to fetch officers: ${error.message}`);
-    } else {
-      setOfficers((data || []) as PlacementOfficer[]);
-    }
-  };
 
   const handleAddOfficer = async () => {
     if (!formData.name || !formData.email) {
@@ -63,39 +68,34 @@ export default function Settings() {
     }
 
     const companies = formData.assigned_companies
-      .split(',')
-      .map(c => c.trim())
+      .split(",")
+      .map((c) => c.trim())
       .filter(Boolean);
 
-    const { error } = await supabase
-      .from('placement_officers')
-      .insert({
+    setLoading(true);
+    try {
+      await addDoc(collection(db, "placement_off"), {
         name: formData.name,
         email: formData.email,
         phone: formData.phone || null,
-        assigned_companies: companies
+        assigned_companies: companies,
+        created_at: serverTimestamp(),
       });
 
-    if (error) {
-      toast.error(`Failed to add officer: ${error.message}`);
-    } else {
       toast.success("Placement officer added successfully");
       setOpen(false);
       setFormData({ name: "", email: "", phone: "", assigned_companies: "" });
-      fetchOfficers();
+    } catch (error: any) {
+      toast.error(`Failed to add officer: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteOfficer = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('placement_officers')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await deleteDoc(doc(db, "placement_off", id));
       toast.success("Officer deleted successfully");
-      fetchOfficers();
     } catch (error: any) {
       toast.error(`Failed to delete officer: ${error.message}`);
     }
@@ -111,6 +111,7 @@ export default function Settings() {
       <Card className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold">Placement Officers</h3>
+
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -118,53 +119,74 @@ export default function Settings() {
                 Add Officer
               </Button>
             </DialogTrigger>
+
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add Placement Officer</DialogTitle>
               </DialogHeader>
+
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="name">Name *</Label>
                   <Input
                     id="name"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
                     placeholder="Officer name"
                   />
                 </div>
+
                 <div>
                   <Label htmlFor="email">Email *</Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
                     placeholder="officer@college.edu"
                   />
                 </div>
+
                 <div>
                   <Label htmlFor="phone">Phone</Label>
                   <Input
                     id="phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
                     placeholder="+1234567890"
                   />
                 </div>
+
                 <div>
-                  <Label htmlFor="companies">Assigned Companies (comma-separated)</Label>
+                  <Label htmlFor="companies">
+                    Assigned Companies (comma-separated)
+                  </Label>
                   <Input
                     id="companies"
                     value={formData.assigned_companies}
-                    onChange={(e) => setFormData({ ...formData, assigned_companies: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        assigned_companies: e.target.value,
+                      })
+                    }
                     placeholder="Google, Microsoft, Amazon"
                   />
                 </div>
+
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleAddOfficer}>Add Officer</Button>
+                  <Button onClick={handleAddOfficer} disabled={loading}>
+                    {loading ? "Adding..." : "Add Officer"}
+                  </Button>
                 </div>
               </div>
             </DialogContent>
@@ -182,20 +204,27 @@ export default function Settings() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <h4 className="font-semibold">{officer.name}</h4>
-                    <p className="text-sm text-muted-foreground">{officer.email}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {officer.email}
+                    </p>
                     {officer.phone && (
-                      <p className="text-sm text-muted-foreground">{officer.phone}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {officer.phone}
+                      </p>
                     )}
-                    {officer.assigned_companies.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {officer.assigned_companies.map((company, idx) => (
-                          <Badge key={idx} variant="secondary">
-                            {company}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
+
+                    {Array.isArray(officer.assigned_companies) &&
+                      officer.assigned_companies.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {officer.assigned_companies.map((company, idx) => (
+                            <Badge key={idx} variant="secondary">
+                              {company}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                   </div>
+
                   <Button
                     variant="ghost"
                     size="sm"

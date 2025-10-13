@@ -18,7 +18,6 @@ const navItems = [
   { to: "/placement/jobs", icon: FileText, label: "Jobs" },
   { to: "/placement/calendar", icon: Calendar, label: "Calendar" },
   { to: "/placement/recruitment-tracking", icon: TrendingUp, label: "Recruitment Tracking" },
-  { to: "/placement/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/placement/communication", icon: MessageSquare, label: "Communication" },
   { to: "/placement/settings", icon: Settings, label: "Settings" },
 ];
