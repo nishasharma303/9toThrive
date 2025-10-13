@@ -18,6 +18,7 @@ const items = [
   { title: "Applied Jobs", url: "/applied", icon: FileCheck },
   { title: "Stats", url: "/stats", icon: PieChart },
   { title: "Resume Generator", url: "/resume-generator", icon: FileText },
+  { title: "Resume Upload", url: "/student/resume-upload", icon: FileText },
   { title: "ATS Checker", url: "/ats-checker", icon: FileSpreadsheet },
   { title: "Settings", url: "/settings", icon: Settings },
 ];

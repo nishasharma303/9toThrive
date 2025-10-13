@@ -1,4 +1,4 @@
-import { Toaster } from "@/components/ui/toaster";
+import React from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AppSidebar } from "./components/AppSidebar";
 import { JobProvider } from "./contexts/JobContext";
+import { ResumeProvider } from "./contexts/ResumeContext";
 import Index from "./pages/Index";
 
 import { useEffect } from "react";
@@ -53,7 +54,8 @@ const AppContent = () => {
   const path = location.pathname;
   
   return (
-    <SidebarProvider>
+    // Keep sidebar open by default when on the resume upload route
+    <SidebarProvider defaultOpen={path === "/student/resume-upload"}>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col">
@@ -63,7 +65,8 @@ const AppContent = () => {
             </div>
           </header>
           <main className="flex-1 overflow-auto">
-            {path.startsWith("/student") && <Student />}
+            {path === "/student" && <Student />}
+            {path === "/student/resume-upload" && <ResumeUpload />}
             {path === "/jobs" && <JobsStudent />}
             {path === "/match" && <Match />}
             {path === "/applied" && <AppliedJobs />}
@@ -82,8 +85,8 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <JobProvider>
-        <Toaster />
-        <Sonner />
+        <ResumeProvider>
+  <Sonner />
         <BrowserRouter>
           <Routes>
             {/* 🏠 Landing Page */}
@@ -91,7 +94,6 @@ const App = () => (
 
             {/* 👨‍🎓 Student Dashboard Routes */}
             <Route path="/student/*" element={<AppContent />} />
-            <Route path="/student/resume-upload" element={<ResumeUpload />} />
             <Route path="/jobs" element={<AppContent />} />
             <Route path="/match" element={<AppContent />} />
             <Route path="/applied" element={<AppContent />} />
@@ -129,6 +131,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        </ResumeProvider>
       </JobProvider>
     </TooltipProvider>
   </QueryClientProvider>
