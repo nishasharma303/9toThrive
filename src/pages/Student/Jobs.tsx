@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,7 +68,7 @@ const Jobs = () => {
   };
   
   // User's skills with proficiency levels (1-10)
-  const userSkillsWithProficiency = {
+  const [userSkillsWithProficiency, setUserSkillsWithProficiency] = useState<Record<string, number>>({
     "React.js": 7,
     "JavaScript": 8,
     "Node.js": 6,
@@ -83,6 +83,68 @@ const Jobs = () => {
     "REST APIs": 7,
     "TailwindCSS": 8,
     "SQL": 4
+  });
+  const [computedJobs, setComputedJobs] = useState<ExtendedJob[]>([]);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // --- resume parsing + skill extraction (adapted from Match.tsx) ---
+  const extractSkills = (text: string): string[] => {
+    const commonSkills = [
+      "React", "JavaScript", "TypeScript", "Node.js", "Python", "Java", "C++",
+      "Angular", "Vue", "Next.js", "Express", "Django", "MongoDB", "PostgreSQL",
+      "AWS", "Docker", "Kubernetes", "Git", "REST API", "GraphQL", "TailwindCSS",
+      "Redux", "Firebase", "Supabase", "Figma", "CSS3", "HTML5", "Testing",
+      "Microservices", "CI/CD", "Agile", "Scrum", "Machine Learning", "AI"
+    ];
+
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const found: string[] = [];
+    const sortedSkills = [...commonSkills].sort((a, b) => b.length - a.length);
+    for (const skill of sortedSkills) {
+      const pattern = new RegExp(`\\b${escape(skill).replace(/\\s+/g, "\\s+")}\\b`, "i");
+      if (pattern.test(text)) found.push(skill);
+    }
+    return Array.from(new Set(found));
+  };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      toast.info("Parsing your resume...");
+      let text = "";
+
+      if (file.type === "application/pdf") {
+        // reuse existing util if available
+        const { extractTextFromPDF } = await import('@/utils/pdfParser2');
+        text = await extractTextFromPDF(file);
+      } else {
+        text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve((event.target?.result as string) ?? "");
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+      }
+
+      const skills = extractSkills(text);
+      if (skills.length === 0) {
+        toast.error("No skills detected in your resume", { description: "Make sure your resume lists technical skills clearly." });
+        return;
+      }
+
+      // Map detected skills to a default proficiency (e.g., 6-8 range)
+      const profMap: Record<string, number> = {};
+      skills.forEach(s => { profMap[s] = 7; });
+
+      // Merge with existing proficiencies, preferring detected skills
+      setUserSkillsWithProficiency(prev => ({ ...prev, ...profMap }));
+      toast.success(`Resume parsed! Found ${skills.length} skills`, { description: skills.slice(0,8).join(", ") + (skills.length > 8 ? "..." : "") });
+    } catch (error) {
+      console.error("Error parsing resume:", error);
+      toast.error("Failed to parse resume", { description: "Please try uploading a PDF or TXT file." });
+    }
   };
   
   // Function to check if user has a skill
@@ -148,7 +210,7 @@ const Jobs = () => {
     return Math.round((actualPoints / totalPossiblePoints) * 100);
   };
 
-  const jobs: ExtendedJob[] = [
+  const baseJobs: ExtendedJob[] = [
     {
       id: 1,
       title: "Full Stack Developer",
@@ -335,24 +397,28 @@ const Jobs = () => {
     },
   ];
 
-  // Calculate and apply the match percentages for each job
-  for (let i = 0; i < jobs.length; i++) {
-    const job = jobs[i];
-    const userCurrentSkills = job.requirements.filter(skill => hasSkill(skill));
-    
-    // Calculate match percentage
-    const matchPercent = calculateMatchPercentage(job.requirements, job.requiredSkillLevels);
-    
-    // Calculate potential match if the user learns all skills to develop
-    const potentialMatch = matchPercent + Math.min(25, Math.round((job.skillsToDevelop.length / job.requirements.length) * 30));
-    
-    // Create a new job object with the calculated values
-    jobs[i] = {
-      ...job,
-      match: matchPercent,
-      potentialMatch: Math.min(100, potentialMatch) // Cap at 100%
-    };
-  }
+  // Compute matches for baseJobs when user skills change and keep top 10 recommendations
+  useEffect(() => {
+    const userSkills = Object.keys(userSkillsWithProficiency);
+    const jobsWithMatch = baseJobs.map((job) => {
+      const matchPercent = calculateMatchPercentage(job.requirements, job.requiredSkillLevels);
+      const potentialMatch = matchPercent + Math.min(25, Math.round((job.skillsToDevelop?.length || 0) / job.requirements.length * 30));
+      return {
+        ...job,
+        match: matchPercent,
+        potentialMatch: Math.min(100, potentialMatch),
+      } as ExtendedJob;
+    }).sort((a, b) => b.match - a.match);
+
+    // Keep top 10 recommendations
+    setComputedJobs(jobsWithMatch.slice(0, 10));
+
+    // If there are no matches and user has skills, notify
+    if (jobsWithMatch.filter(j => j.match >= 85).length === 0 && userSkills.length > 0) {
+      // show lightweight notice in UI rather than toast spam; leave toast commented for optional use
+      // toast.info("No jobs match 85%+ with your skills");
+    }
+  }, [userSkillsWithProficiency]);
 
   return (
     <div className="p-8 space-y-6">
@@ -364,10 +430,19 @@ const Jobs = () => {
             <span className="font-medium">New:</span> We've improved our skill matching algorithm! Your skills are now rated on a scale of 1-10 for more accurate job matches. Check out your skill gap analysis for a detailed breakdown.
           </p>
         </div>
+        <div className="mt-4 flex items-center gap-3">
+          <input ref={inputRef} id="jobs-resume-upload" type="file" accept=".pdf,.txt,.doc,.docx" onChange={handleResumeUpload} className="hidden" />
+          <label htmlFor="jobs-resume-upload">
+            <Button size="sm" onClick={() => inputRef.current?.click()}>
+              Upload Resume
+            </Button>
+          </label>
+          <Badge variant="outline">Top {computedJobs.length} recommendations</Badge>
+        </div>
       </div>
 
       <div className="grid gap-6">
-        {jobs.map((job) => {
+        {computedJobs.map((job) => {
           const applied = isJobApplied(job.id);
           return (
             <Card
