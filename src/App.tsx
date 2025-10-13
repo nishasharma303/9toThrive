@@ -25,7 +25,7 @@ import NotFound from "./pages/NotFound";
 import Match from "./pages/Student/Match";
 import ResumeUpload from "./pages/Student/ResumeUpload";
 
-// Placement dashboard import
+// Placement dashboard imports
 import { PlacementLayout } from "./components/layout/PlacementLayout";
 import DashboardPlacement from "./pages/Placement/Dashboard";
 import Students from "./pages/Placement/Students";
