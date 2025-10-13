@@ -1,132 +1,241 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/Placement/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function Settings() {
-  const [officerName, setOfficerName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("");
-  const [apiUrl, setApiUrl] = useState("");
+// ✅ Firebase imports
+import { db } from "@/firebaseConfig";
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+} from "firebase/firestore";
 
-  const handleSave = () => {
-    toast.success("Settings saved successfully!");
+interface PlacementOfficer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  assigned_companies: string[];
+}
+
+export default function Settings() {
+  const [officers, setOfficers] = useState<PlacementOfficer[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    assigned_companies: "",
+  });
+
+  // ✅ Realtime Firestore listener
+  useEffect(() => {
+    const q = query(collection(db, "placement_off"), orderBy("created_at", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as PlacementOfficer[];
+      setOfficers(list);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleAddOfficer = async () => {
+    if (!formData.name || !formData.email) {
+      toast.error("Name and email are required");
+      return;
+    }
+
+    const companies = formData.assigned_companies
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    setLoading(true);
+    try {
+      await addDoc(collection(db, "placement_off"), {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || null,
+        assigned_companies: companies,
+        created_at: serverTimestamp(),
+      });
+
+      toast.success("Placement officer added successfully");
+      setOpen(false);
+      setFormData({ name: "", email: "", phone: "", assigned_companies: "" });
+    } catch (error: any) {
+      toast.error(`Failed to add officer: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteOfficer = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "placement_off", id));
+      toast.success("Officer deleted successfully");
+    } catch (error: any) {
+      toast.error(`Failed to delete officer: ${error.message}`);
+    }
   };
 
   return (
     <div className="p-8">
       <PageHeader
         title="Settings"
-        description="Configure placement cell profile and preferences"
+        description="Manage placement officers and system preferences"
       />
 
-      <Card className="p-6 max-w-2xl">
-        <div className="space-y-6">
-          {/* Officer Name */}
-          <div className="space-y-2">
-            <Label htmlFor="officerName">Placement Officer Name</Label>
-            <Input
-              id="officerName"
-              value={officerName}
-              onChange={(e) => setOfficerName(e.target.value)}
-              placeholder="Enter officer name"
-            />
-          </div>
+      <Card className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-semibold">Placement Officers</h3>
 
-          {/* Email */}
-          <div className="space-y-2">
-            <Label htmlFor="email">Official Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter email address"
-            />
-          </div>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Officer
+              </Button>
+            </DialogTrigger>
 
-          {/* Role */}
-          <div className="space-y-2">
-            <Label htmlFor="role">Team Access Role</Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger id="role">
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">Administrator</SelectItem>
-                <SelectItem value="coordinator">Placement Coordinator</SelectItem>
-                <SelectItem value="assistant">Assistant</SelectItem>
-                <SelectItem value="viewer">Viewer</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Placement Officer</DialogTitle>
+              </DialogHeader>
 
-          {/* API URL */}
-          <div className="space-y-2">
-            <Label htmlFor="apiUrl">API URL</Label>
-            <Input
-              id="apiUrl"
-              value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
-              placeholder="Enter API endpoint URL"
-            />
-            <p className="text-xs text-mint-cream">
-              Used for integrations with student portal and recruiter systems
-            </p>
-          </div>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Name *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    placeholder="Officer name"
+                  />
+                </div>
 
-          {/* Save Button */}
-          <Button onClick={handleSave} className="w-full sm:w-auto">
-            <Save className="w-4 h-4 mr-2" />
-            Save Settings
-          </Button>
+                <div>
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    placeholder="officer@college.edu"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    placeholder="+1234567890"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="companies">
+                    Assigned Companies (comma-separated)
+                  </Label>
+                  <Input
+                    id="companies"
+                    value={formData.assigned_companies}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        assigned_companies: e.target.value,
+                      })
+                    }
+                    placeholder="Google, Microsoft, Amazon"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddOfficer} disabled={loading}>
+                    {loading ? "Adding..." : "Add Officer"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-      </Card>
 
-      {/* Additional Settings */}
-      <Card className="p-6 max-w-2xl mt-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">
-          System Preferences
-        </h3>
         <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-border">
-            <div>
-              <p className="font-medium text-foreground">Email Notifications</p>
-              <p className="text-sm text-mint-cream">
-                Receive updates about new registrations
-              </p>
-            </div>
-            <Button variant="outline" size="sm">
-              Enabled
-            </Button>
-          </div>
-          <div className="flex items-center justify-between py-3 border-b border-border">
-            <div>
-              <p className="font-medium text-foreground">Auto-Verification</p>
-              <p className="text-sm text-mint-cream">
-                Automatically verify students with complete documents
-              </p>
-            </div>
-            <Button variant="outline" size="sm">
-              Disabled
-            </Button>
-          </div>
-          <div className="flex items-center justify-between py-3">
-            <div>
-              <p className="font-medium text-foreground">Data Backup</p>
-              <p className="text-sm text-mint-cream">
-                Weekly automatic backup to cloud storage
-              </p>
-            </div>
-            <Button variant="outline" size="sm">
-              Enabled
-            </Button>
-          </div>
+          {officers.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              No placement officers added yet
+            </p>
+          ) : (
+            officers.map((officer) => (
+              <Card key={officer.id} className="p-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h4 className="font-semibold">{officer.name}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {officer.email}
+                    </p>
+                    {officer.phone && (
+                      <p className="text-sm text-muted-foreground">
+                        {officer.phone}
+                      </p>
+                    )}
+
+                    {Array.isArray(officer.assigned_companies) &&
+                      officer.assigned_companies.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {officer.assigned_companies.map((company, idx) => (
+                            <Badge key={idx} variant="secondary">
+                              {company}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteOfficer(officer.id)}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
+              </Card>
+            ))
+          )}
         </div>
       </Card>
     </div>

@@ -1,134 +1,254 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/Placement/PageHeader";
 import { DataTable } from "@/components/Placement/Datatable";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Download } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { exportToExcel } from "@/utils/excelExport";
 import { PostJobDialog } from "@/components/Placement/PostJobDialog";
+import { db } from "@/firebaseConfig";
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  doc,
+  updateDoc,
+  getDocs,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 
 interface Job {
   id: string;
-  jobTitle: string;
-  recruiter: string;
+  title: string;
+  company: string;
+  role: string;
+  contact_name?: string;
+  contact_email?: string;
+  description?: string;
+  location?: string;
+  salary?: string;
+  deadline?: string;
+  scheduled_at?: Timestamp;
   applicants: number;
-  driveDate: string;
-  salary: string;
-  location: string;
+  status: "active" | "closed" | "draft";
+  flagged?: boolean;
+  created_at?: Timestamp;
+  updated_at?: Timestamp;
 }
 
-const mockJobs: Job[] = [
-  {
-    id: "1",
-    jobTitle: "Software Engineer",
-    recruiter: "Tech Innovations Pvt Ltd",
-    applicants: 45,
-    driveDate: "2025-11-15",
-    salary: "₹8.5 LPA",
-    location: "Bangalore",
-  },
-  {
-    id: "2",
-    jobTitle: "Data Analyst",
-    recruiter: "Global Systems Inc",
-    applicants: 32,
-    driveDate: "2025-11-20",
-    salary: "₹7 LPA",
-    location: "Hyderabad",
-  },
-  {
-    id: "3",
-    jobTitle: "Full Stack Developer",
-    recruiter: "Startup Ventures",
-    applicants: 58,
-    driveDate: "2025-11-25",
-    salary: "₹10 LPA",
-    location: "Pune",
-  },
-  {
-    id: "4",
-    jobTitle: "UI/UX Designer",
-    recruiter: "Design Solutions",
-    applicants: 23,
-    driveDate: "2025-12-01",
-    salary: "₹6.5 LPA",
-    location: "Mumbai",
-  },
-  {
-    id: "5",
-    jobTitle: "DevOps Engineer",
-    recruiter: "Cloud Tech Systems",
-    applicants: 41,
-    driveDate: "2025-12-05",
-    salary: "₹12 LPA",
-    location: "Bangalore",
-  },
-];
-
 export default function Jobs() {
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleJobPosted = (newJob: Omit<Job, "id">) => {
-    const job = {
-      ...newJob,
-      id: (jobs.length + 1).toString(),
-    };
-    setJobs(prev => [...prev, job]);
+  // Real-time listener for jobs
+  useEffect(() => {
+    const jobsQuery = query(collection(db, "jobs"), orderBy("created_at", "desc"));
+
+    const unsubscribe = onSnapshot(
+      jobsQuery,
+      (snapshot) => {
+        const jobsData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Job[];
+        setJobs(jobsData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Jobs fetch error:", error);
+        toast.error(`Failed to fetch jobs: ${error.message}`);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Update recruiter stats: active_postings, job_roles, average_salary, contact info
+  const updateRecruiterStats = async (
+    companyName: string,
+    role: string,
+    contactName: string,
+    contactEmail: string
+  ) => {
+    const recruitersRef = collection(db, "recruiter");
+    const q = query(recruitersRef, where("company_name", "==", companyName));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      // Add new recruiter
+      await addDoc(recruitersRef, {
+        company_name: companyName,
+        contact_name: contactName,
+        email: contactEmail,
+        phone: "",
+        domain: "",
+        status: "active",
+        active_postings: 1,
+        job_roles: [role],
+        average_salary: "",
+        created_at: Timestamp.now(),
+        updated_at: Timestamp.now(),
+      });
+    } else {
+      const docRef = snapshot.docs[0].ref;
+
+      // Get all jobs for this company to compute active_postings & average_salary
+      const jobsQuery = query(collection(db, "jobs"), where("company", "==", companyName));
+      const jobsSnap = await getDocs(jobsQuery);
+      const activeJobs = jobsSnap.docs.map((d) => d.data() as Job);
+
+      const activePostings = activeJobs.length;
+      const rolesSet = new Set<string>(activeJobs.map((j) => j.role));
+      if (role) rolesSet.add(role);
+
+      const salaries = activeJobs
+        .map((j) => parseFloat(j.salary || "0"))
+        .filter((s) => !isNaN(s) && s > 0);
+      const avgSalary = salaries.length > 0
+        ? (salaries.reduce((a, b) => a + b, 0) / salaries.length).toFixed(2)
+        : "";
+
+      await updateDoc(docRef, {
+        contact_name: contactName,
+        email: contactEmail,
+        active_postings: activePostings,
+        job_roles: Array.from(rolesSet),
+        average_salary: avgSalary,
+        updated_at: Timestamp.now(),
+      });
+    }
   };
 
-  const handleScheduleDrive = (jobTitle: string) => {
-    toast.success(`Placement drive scheduled for ${jobTitle}`);
+  const handleJobPosted = async (newJob: any) => {
+    try {
+      if (!newJob.title || !newJob.company || !newJob.role || !newJob.contact_name || !newJob.contact_email) {
+        toast.error("Please provide title, company, role, contact name, and email.");
+        return;
+      }
+
+      const jobData: any = {
+        title: newJob.title,
+        company: newJob.company,
+        role: newJob.role,
+        contact_name: newJob.contact_name,
+        contact_email: newJob.contact_email,
+        description: newJob.description || "",
+        location: newJob.location || "",
+        salary: newJob.salary || "",
+        deadline: newJob.deadline || "",
+        applicants: 0,
+        status: "active",
+        flagged: false,
+        created_at: Timestamp.now(),
+        updated_at: Timestamp.now(),
+      };
+
+      if (newJob.scheduled_date) {
+        jobData.scheduled_at =
+          newJob.scheduled_date instanceof Timestamp
+            ? newJob.scheduled_date
+            : newJob.scheduled_date instanceof Date
+            ? Timestamp.fromDate(newJob.scheduled_date)
+            : Timestamp.fromDate(new Date(newJob.scheduled_date));
+      }
+
+      await addDoc(collection(db, "jobs"), jobData);
+      toast.success("Job posted successfully!");
+
+      await updateRecruiterStats(newJob.company, newJob.role, newJob.contact_name, newJob.contact_email);
+    } catch (error) {
+      console.error("Add job error:", error);
+      toast.error(
+        `Failed to post job: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string, company?: string, role?: string) => {
+    try {
+      await deleteDoc(doc(db, "jobs", jobId));
+      toast.success("Job deleted successfully!");
+      if (company) await updateRecruiterStats(company, role || "", "", "");
+    } catch (error) {
+      console.error("Delete job error:", error);
+      toast.error(
+        `Failed to delete job: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   };
 
   const handleExport = () => {
     try {
-      const exportData = jobs.map(job => ({
-        'Job ID': job.id,
-        'Job Title': job.jobTitle,
-        'Recruiter': job.recruiter,
-        'Applicants': job.applicants,
-        'Drive Date': job.driveDate,
-        'Salary': job.salary,
-        'Location': job.location,
+      const exportData = jobs.map((job) => ({
+        "Job ID": job.id,
+        "Job Title": job.title,
+        Company: job.company,
+        Role: job.role,
+        Contact: job.contact_name || "",
+        "Contact Email": job.contact_email || "",
+        Description: job.description || "",
+        Applicants: job.applicants,
+        Status: job.status,
+        Salary: job.salary || "",
+        Location: job.location || "",
+        Deadline: job.deadline || "",
+        "Scheduled Date": job.scheduled_at ? job.scheduled_at.toDate().toLocaleString() : "",
       }));
-      
-      exportToExcel(exportData, 'jobs_list', 'Jobs');
+
+      exportToExcel(exportData, "jobs_list", "Jobs");
       toast.success("Job listings exported to Excel successfully!");
     } catch (error) {
+      console.error("Export error:", error);
       toast.error("Failed to export jobs");
     }
   };
 
   const columns = [
-    { key: "jobTitle", header: "Job Title" },
-    { key: "recruiter", header: "Recruiter" },
+    { key: "title", header: "Job Title" },
+    { key: "company", header: "Company" },
+    { key: "role", header: "Role" },
+    { key: "contact_name", header: "Contact Name" },
+    { key: "contact_email", header: "Contact Email" },
+    { key: "description", header: "Description" },
     {
       key: "applicants",
       header: "Applicants",
       render: (job: Job) => (
-        <Badge variant="secondary" className="font-semibold">
-          {job.applicants}
+        <Badge variant="secondary" className="font-semibold">{job.applicants}</Badge>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (job: Job) => (
+        <Badge variant={
+          job.status === "active" ? "default" : job.status === "closed" ? "secondary" : "outline"
+        }>
+          {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
         </Badge>
       ),
     },
     { key: "salary", header: "Salary" },
     { key: "location", header: "Location" },
-    { key: "driveDate", header: "Drive Date" },
+    {
+      key: "scheduled_at",
+      header: "Interview Date",
+      render: (job: Job) => job.scheduled_at ? job.scheduled_at.toDate().toLocaleString() : "N/A",
+    },
     {
       key: "actions",
       header: "Actions",
       render: (job: Job) => (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleScheduleDrive(job.jobTitle)}
-          >
-            <Calendar className="w-4 h-4 mr-1" />
-            Schedule
-          </Button>
-        </div>
+        <Button size="sm" variant="destructive" onClick={() => handleDeleteJob(job.id, job.company, job.role)}>
+          <Trash2 className="w-4 h-4 mr-1" />
+          Delete
+        </Button>
       ),
     },
   ];
@@ -150,7 +270,15 @@ export default function Jobs() {
       />
 
       <div className="mt-6">
-        <DataTable data={jobs} columns={columns} />
+        {loading ? (
+          <div className="text-center py-8">Loading jobs...</div>
+        ) : jobs.length > 0 ? (
+          <DataTable data={jobs} columns={columns} />
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            No jobs posted yet. Click "Post Job" to add one.
+          </div>
+        )}
       </div>
     </div>
   );

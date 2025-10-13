@@ -1,30 +1,20 @@
-import { useState, useRef } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, Download } from "lucide-react";
 import { toast } from "sonner";
-import { parsePDF } from "@/utils/pdfParser";
 
-interface Student {
-  id: string;
+interface StudentCSV {
   name: string;
+  email: string;
+  reg_no: string;
   branch: string;
   skills: string[];
-  verificationStatus: "verified" | "unverified" | "pending";
-  email?: string;
-  rollNo?: string;
 }
 
 interface BulkUploadDialogProps {
-  onStudentsUploaded: (students: Student[]) => void;
+  onStudentsUploaded: (students: any[]) => void;
 }
 
 export function BulkUploadDialog({ onStudentsUploaded }: BulkUploadDialogProps) {
@@ -32,31 +22,56 @@ export function BulkUploadDialog({ onStudentsUploaded }: BulkUploadDialogProps) 
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-    
-    // Validate file type
-    if (file.type !== 'application/pdf') {
-      toast.error('Please upload a PDF file');
+
+    const validTypes = ["text/csv", "application/vnd.ms-excel"];
+    if (!validTypes.includes(file.type) && !file.name.endsWith(".csv")) {
+      toast.error("Please upload a CSV file");
       return;
     }
-    
-    // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size must be less than 10MB');
+      toast.error("File size should be less than 10MB");
       return;
     }
-    
+
     setSelectedFile(file);
+  };
+
+  const parseCSV = (text: string): any[] => {
+    const lines = text.split("\n").filter((line) => line.trim());
+    const headers = lines[0].split(",").map((h) => h.trim());
+
+    return lines.slice(1).map((line) => {
+      const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+      const student: any = {};
+
+      headers.forEach((header, index) => {
+        if (header.toLowerCase() === "skills") {
+          student["Skills"] = values[index]
+            ? values[index].split(/[;|,]/).map((s) => s.trim()).filter(Boolean)
+            : [];
+        } else if (header.toLowerCase() === "name") {
+          student["Name"] = values[index] || "";
+        } else if (header.toLowerCase() === "email") {
+          student["Email"] = values[index] || "";
+        } else if (header.toLowerCase() === "reg_no") {
+          student["RegNo"] = values[index] || "";
+        } else if (header.toLowerCase() === "branch") {
+          student["Branch"] = values[index] || "";
+        }
+      });
+
+      student["verification_status"] = "unverified"; // default
+      return student;
+    });
   };
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      toast.error('Please select a file first');
+      toast.error("Please select a CSV file");
       return;
     }
 
@@ -64,55 +79,35 @@ export function BulkUploadDialog({ onStudentsUploaded }: BulkUploadDialogProps) 
     setProgress(0);
 
     try {
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 10, 90));
+      // Progress simulation
+      const interval = setInterval(() => {
+        setProgress((prev) => (prev >= 90 ? prev : prev + 10));
       }, 200);
 
-      // Parse PDF
-      const parsedData = await parsePDF(selectedFile);
-      
-      clearInterval(progressInterval);
+      const text = await selectedFile.text();
+      const students = parseCSV(text);
+
+      clearInterval(interval);
       setProgress(100);
 
-      if (parsedData.length === 0) {
-        toast.error('No student data found in the PDF');
+      if (students.length === 0) {
+        toast.error("No students found in the CSV file");
         setUploading(false);
         return;
       }
 
-      // Convert to Student format
-      const newStudents: Student[] = parsedData.map((data, index) => ({
-        id: `upload-${Date.now()}-${index}`,
-        name: data.name,
-        branch: data.branch,
-        skills: data.skills || [],
-        verificationStatus: 'pending' as const,
-        email: data.email,
-        rollNo: data.rollNo,
-      }));
+      // Send parsed students to parent handler
+      onStudentsUploaded(students);
 
-      // Call parent callback
-      onStudentsUploaded(newStudents);
-
-      toast.success(`Successfully uploaded ${newStudents.length} student(s)!`);
-      
-      // Reset and close
-      setTimeout(() => {
-        setOpen(false);
-        setSelectedFile(null);
-        setProgress(0);
-        setUploading(false);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      }, 1000);
-
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to parse PDF. Please check the file format.');
-      setUploading(false);
+      toast.success(`Successfully uploaded ${students.length} students!`);
+      setOpen(false);
+      setSelectedFile(null);
       setProgress(0);
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast.error("Failed to parse CSV. Please check the format.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -120,90 +115,67 @@ export function BulkUploadDialog({ onStudentsUploaded }: BulkUploadDialogProps) 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          <Upload className="w-4 h-4 mr-2" />
-          Bulk Upload
+          <Upload className="w-4 h-4 mr-2" /> Bulk Upload
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-foreground">Bulk Upload Students</DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            Upload a PDF file containing student details (Name, Email, Branch, Roll No, Skills)
-          </DialogDescription>
+          <DialogTitle>Bulk Upload Students</DialogTitle>
         </DialogHeader>
-        
-        <div className="space-y-4 py-4">
-          {/* File Input */}
-          <div className="flex flex-col gap-3">
+        <div className="space-y-4">
+          {/* Download sample CSV */}
+          <Button variant="outline" size="sm" asChild className="flex-1">
+            <a href="/sample-students.csv" download>
+              <Download className="w-4 h-4 mr-2" /> Download Sample CSV
+            </a>
+          </Button>
+
+          {/* File upload box */}
+          <div
+            className="border-2 border-dashed rounded-lg p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+            onClick={() => document.getElementById("file-upload")?.click()}
+          >
             <input
-              ref={fileInputRef}
+              id="file-upload"
               type="file"
-              accept=".pdf"
+              accept=".csv"
               onChange={handleFileSelect}
               className="hidden"
-              id="pdf-upload"
             />
-            <label
-              htmlFor="pdf-upload"
-              className="flex items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-            >
-              <div className="flex flex-col items-center gap-2">
-                <FileText className="w-8 h-8 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  {selectedFile ? selectedFile.name : 'Click to select PDF file'}
-                </span>
-              </div>
-            </label>
+            <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground mb-2">
+              Click to upload or drag and drop
+            </p>
+            <p className="text-xs text-muted-foreground">CSV files only (Max 10MB)</p>
           </div>
 
-          {/* File Info */}
-          {selectedFile && !uploading && (
-            <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
-              <CheckCircle2 className="w-5 h-5 text-success" />
-              <div className="flex-1 text-sm text-mint-cream">
-                <p className="font-medium">{selectedFile.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {(selectedFile.size / 1024).toFixed(2)} KB
-                </p>
-              </div>
-            </div>
-          )}
+          {selectedFile && <div className="text-sm">Selected: {selectedFile.name}</div>}
 
-          {/* Progress */}
           {uploading && (
             <div className="space-y-2">
-              <Progress value={progress} className="h-2" />
+              <Progress value={progress} />
               <p className="text-sm text-center text-muted-foreground">
-                Uploading... {progress}%
+                Uploading: {progress}%
               </p>
             </div>
           )}
 
-          {/* Format Info */}
-          <div className="flex items-start gap-2 p-3 bg-accent/10 rounded-lg">
-            <AlertCircle className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
-            <div className="text-xs text-muted-foreground">
-              <p className="font-medium text-mint-cream mb-1">Expected PDF Format:</p>
-              <p>Name | Email | Branch | Roll No | Skills (comma-separated)</p>
-              <p className="mt-1">Example: John Doe | john@email.com | CS | R001 | React, Node.js</p>
-            </div>
+          {/* CSV Format Info */}
+          <div className="bg-muted p-4 rounded-lg text-sm text-muted-foreground">
+            <p>CSV Headers: name,email,reg_no,branch,skills</p>
+            <p>Skills: Use semicolon or comma to separate multiple skills</p>
+            <p>Example: "Python;React;Node"</p>
           </div>
-        </div>
 
-        <div className="flex justify-end gap-3">
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            disabled={uploading}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpload}
-            disabled={!selectedFile || uploading}
-          >
-            {uploading ? 'Uploading...' : 'Upload'}
-          </Button>
+          {/* Actions */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpload} disabled={!selectedFile || uploading}>
+              {uploading ? "Uploading..." : "Upload"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

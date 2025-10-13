@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppSidebar } from "./components/AppSidebar";
 import { JobProvider } from "./contexts/JobContext";
 import { ResumeProvider } from "./contexts/ResumeContext";
@@ -31,9 +31,10 @@ import DashboardPlacement from "./pages/Placement/Dashboard";
 import Students from "./pages/Placement/Students";
 import Recruiters from "./pages/Placement/Recruiters";
 import Jobs from "./pages/Placement/Jobs";
-import Analytics from "./pages/Placement/Analytics";
 import Communication from "./pages/Placement/Communication";
 import Settings from "./pages/Placement/Settings";
+import CalendarPage from "./pages/Placement/Calendar";
+import RecruitmentTracking from "./pages/Placement/RecruitmentTracking";
 
 // Recruitment dashboard imports
 import { RecruitmentLayout } from "./components/layout/RecruitmentLayout";
@@ -108,8 +109,9 @@ const App = () => (
               <Route path="students" element={<Students />} />
               <Route path="recruiters" element={<Recruiters />} />
               <Route path="jobs" element={<Jobs />} />
-              <Route path="analytics" element={<Analytics />} />
               <Route path="communication" element={<Communication />} />
+              <Route path="calendar" element={<CalendarPage />} />
+              <Route path="recruitment-tracking" element={<RecruitmentTracking />} />
               <Route path="settings" element={<Settings />} />
             </Route>
 
