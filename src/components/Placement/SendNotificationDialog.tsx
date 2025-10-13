@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/firebaseConfig";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 interface Student {
   id: string;
@@ -54,28 +55,27 @@ export function SendNotificationDialog({ students }: SendNotificationDialogProps
     setSending(true);
 
     try {
-      // Get student IDs from all emails (selected + manual)
-      const selectedStudentIds = studentsWithEmail
-        .filter(s => allEmails.includes(s.email!))
-        .map(s => s.id);
+      const notificationsRef = collection(db, "notifications");
 
-      const { data, error } = await supabase.functions.invoke('send-notification', {
-        body: {
-          studentIds: selectedStudentIds,
+      // Create a notification document for each recipient
+      const promises = allEmails.map(email =>
+        addDoc(notificationsRef, {
+          email,
           message,
-          type: 'email'
-        }
-      });
+          timestamp: serverTimestamp(),
+          type: "email", // can later change to push, SMS, etc.
+        })
+      );
 
-      if (error) throw error;
-      
-      toast.success(data.message || `Notification sent to ${allEmails.length} recipient(s)!`);
+      await Promise.all(promises);
+
+      toast.success(`Notification sent to ${allEmails.length} recipient(s)!`);
       setMessage("");
       setSelectedEmails([]);
       setManualEmails("");
       setOpen(false);
     } catch (error: any) {
-      console.error('Send notification error:', error);
+      console.error("Send notification error:", error);
       toast.error(error.message || "Failed to send notifications");
     } finally {
       setSending(false);
