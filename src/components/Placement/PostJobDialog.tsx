@@ -12,6 +12,8 @@ interface PostJobDialogProps {
     title: string;
     company: string;
     role: string;
+    contact_name: string;
+    contact_email: string;
     description?: string;
     location?: string;
     salary?: string;
@@ -26,6 +28,8 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
     title: "",
     company: "",
     role: "",
+    contact_name: "",
+    contact_email: "",
     salary: "",
     location: "",
     deadline: "",
@@ -36,13 +40,24 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.company || !formData.role) {
+    if (!formData.title || !formData.company || !formData.role || !formData.contact_name || !formData.contact_email) {
       toast.error("Please fill in all required fields");
       return;
     }
 
     onJobPosted(formData);
-    setFormData({ title: "", company: "", role: "", salary: "", location: "", deadline: "", scheduled_date: "", description: "" });
+    setFormData({
+      title: "",
+      company: "",
+      role: "",
+      contact_name: "",
+      contact_email: "",
+      salary: "",
+      location: "",
+      deadline: "",
+      scheduled_date: "",
+      description: "",
+    });
     setOpen(false);
   };
 
@@ -59,6 +74,7 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
           <DialogTitle>Post New Job</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Job Title */}
           <div className="space-y-2">
             <Label htmlFor="title">Job Title *</Label>
             <Input
@@ -68,6 +84,8 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
               placeholder="e.g., Software Engineer"
             />
           </div>
+
+          {/* Company */}
           <div className="space-y-2">
             <Label htmlFor="company">Company *</Label>
             <Input
@@ -77,6 +95,8 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
               placeholder="e.g., Tech Innovations Pvt Ltd"
             />
           </div>
+
+          {/* Role */}
           <div className="space-y-2">
             <Label htmlFor="role">Role *</Label>
             <Input
@@ -86,9 +106,34 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
               placeholder="e.g., Full Stack Developer"
             />
           </div>
+
+          {/* Contact Name & Email */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="salary">Salary *</Label>
+              <Label htmlFor="contact_name">Contact Name *</Label>
+              <Input
+                id="contact_name"
+                value={formData.contact_name}
+                onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+                placeholder="e.g., John Doe"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact_email">Contact Email *</Label>
+              <Input
+                id="contact_email"
+                type="email"
+                value={formData.contact_email}
+                onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                placeholder="e.g., john@example.com"
+              />
+            </div>
+          </div>
+
+          {/* Salary & Location */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="salary">Salary</Label>
               <Input
                 id="salary"
                 value={formData.salary}
@@ -97,7 +142,7 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="location">Location *</Label>
+              <Label htmlFor="location">Location</Label>
               <Input
                 id="location"
                 value={formData.location}
@@ -106,6 +151,8 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
               />
             </div>
           </div>
+
+          {/* Deadline & Scheduled Interview */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="deadline">Application Deadline</Label>
@@ -126,6 +173,8 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
               />
             </div>
           </div>
+
+          {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Description (Optional)</Label>
             <Textarea
@@ -136,6 +185,8 @@ export function PostJobDialog({ onJobPosted }: PostJobDialogProps) {
               rows={4}
             />
           </div>
+
+          {/* Buttons */}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel

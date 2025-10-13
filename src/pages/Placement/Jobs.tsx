@@ -27,6 +27,8 @@ interface Job {
   title: string;
   company: string;
   role: string;
+  contact_name?: string;
+  contact_email?: string;
   description?: string;
   location?: string;
   salary?: string;
@@ -67,8 +69,13 @@ export default function Jobs() {
     return () => unsubscribe();
   }, []);
 
-  // Update recruiter stats: active_postings, job_roles, average_salary
-  const updateRecruiterStats = async (companyName: string, role: string) => {
+  // Update recruiter stats: active_postings, job_roles, average_salary, contact info
+  const updateRecruiterStats = async (
+    companyName: string,
+    role: string,
+    contactName: string,
+    contactEmail: string
+  ) => {
     const recruitersRef = collection(db, "recruiter");
     const q = query(recruitersRef, where("company_name", "==", companyName));
     const snapshot = await getDocs(q);
@@ -77,8 +84,8 @@ export default function Jobs() {
       // Add new recruiter
       await addDoc(recruitersRef, {
         company_name: companyName,
-        contact_name: "",
-        email: "",
+        contact_name: contactName,
+        email: contactEmail,
         phone: "",
         domain: "",
         status: "active",
@@ -100,7 +107,6 @@ export default function Jobs() {
       const rolesSet = new Set<string>(activeJobs.map((j) => j.role));
       if (role) rolesSet.add(role);
 
-      // Compute average_salary
       const salaries = activeJobs
         .map((j) => parseFloat(j.salary || "0"))
         .filter((s) => !isNaN(s) && s > 0);
@@ -109,6 +115,8 @@ export default function Jobs() {
         : "";
 
       await updateDoc(docRef, {
+        contact_name: contactName,
+        email: contactEmail,
         active_postings: activePostings,
         job_roles: Array.from(rolesSet),
         average_salary: avgSalary,
@@ -119,8 +127,8 @@ export default function Jobs() {
 
   const handleJobPosted = async (newJob: any) => {
     try {
-      if (!newJob.title || !newJob.company || !newJob.role) {
-        toast.error("Please provide title, company, and role.");
+      if (!newJob.title || !newJob.company || !newJob.role || !newJob.contact_name || !newJob.contact_email) {
+        toast.error("Please provide title, company, role, contact name, and email.");
         return;
       }
 
@@ -128,6 +136,8 @@ export default function Jobs() {
         title: newJob.title,
         company: newJob.company,
         role: newJob.role,
+        contact_name: newJob.contact_name,
+        contact_email: newJob.contact_email,
         description: newJob.description || "",
         location: newJob.location || "",
         salary: newJob.salary || "",
@@ -151,7 +161,7 @@ export default function Jobs() {
       await addDoc(collection(db, "jobs"), jobData);
       toast.success("Job posted successfully!");
 
-      await updateRecruiterStats(newJob.company, newJob.role);
+      await updateRecruiterStats(newJob.company, newJob.role, newJob.contact_name, newJob.contact_email);
     } catch (error) {
       console.error("Add job error:", error);
       toast.error(
@@ -164,7 +174,7 @@ export default function Jobs() {
     try {
       await deleteDoc(doc(db, "jobs", jobId));
       toast.success("Job deleted successfully!");
-      if (company) await updateRecruiterStats(company, role || "");
+      if (company) await updateRecruiterStats(company, role || "", "", "");
     } catch (error) {
       console.error("Delete job error:", error);
       toast.error(
@@ -180,6 +190,8 @@ export default function Jobs() {
         "Job Title": job.title,
         Company: job.company,
         Role: job.role,
+        Contact: job.contact_name || "",
+        "Contact Email": job.contact_email || "",
         Description: job.description || "",
         Applicants: job.applicants,
         Status: job.status,
@@ -201,6 +213,8 @@ export default function Jobs() {
     { key: "title", header: "Job Title" },
     { key: "company", header: "Company" },
     { key: "role", header: "Role" },
+    { key: "contact_name", header: "Contact Name" },
+    { key: "contact_email", header: "Contact Email" },
     { key: "description", header: "Description" },
     {
       key: "applicants",
