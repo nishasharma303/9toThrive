@@ -21,6 +21,8 @@ import {
   FileText,
   Clock,
   User,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import {
   Select,
@@ -35,6 +37,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { localMatchingService } from "@/pages/Recruitment/Services/localMatchingService";
@@ -291,8 +300,72 @@ export default function CandidateMatching() {
     });
   };
 
-  // Export only rejected candidates with all details + reason (AI insights)
-  const handleExport = () => {
+  // Generate reasons based on candidate data
+  const generateReason = (result: MatchResult, status: 'shortlisted' | 'rejected') => {
+    const reasons: string[] = [];
+    
+    if (status === 'shortlisted') {
+      // Positive reasons for shortlisting
+      if (result.overallScore >= 90) {
+        reasons.push("Exceptional match with 90%+ overall score");
+      } else if (result.overallScore >= 80) {
+        reasons.push("Strong match with 80%+ overall score");
+      } else if (result.overallScore >= 70) {
+        reasons.push("Good match with 70%+ overall score");
+      }
+      
+      if (result.breakdown.skillScore >= 85) {
+        reasons.push(`Excellent skill alignment (${result.breakdown.skillScore}%)`);
+      }
+      
+      if (result.matchedSkills.length >= 5) {
+        reasons.push(`Matches ${result.matchedSkills.length} required skills`);
+      }
+      
+      if (result.candidate.cgpa && result.candidate.cgpa >= 8) {
+        reasons.push(`Strong academic record (CGPA: ${result.candidate.cgpa.toFixed(2)})`);
+      }
+      
+      if (result.breakdown.experienceScore >= 80) {
+        reasons.push("Ideal experience level for the role");
+      }
+      
+      if (result.candidate.projects && result.candidate.projects.length >= 3) {
+        reasons.push(`Demonstrated practical experience with ${result.candidate.projects.length} relevant projects`);
+      }
+    } else {
+      // Reasons for rejection
+      if (result.overallScore < 60) {
+        reasons.push("Below minimum match threshold (60%)");
+      }
+      
+      if (result.missingSkills.length > 3) {
+        reasons.push(`Missing ${result.missingSkills.length} critical skills: ${result.missingSkills.slice(0, 3).join(', ')}`);
+      }
+      
+      if (result.breakdown.skillScore < 50) {
+        reasons.push(`Insufficient skill match (${result.breakdown.skillScore}%)`);
+      }
+      
+      if (result.candidate.cgpa && result.candidate.cgpa < 6.5) {
+        reasons.push(`Below minimum CGPA requirement (${result.candidate.cgpa.toFixed(2)})`);
+      }
+      
+      if (result.breakdown.experienceScore < 40) {
+        reasons.push("Experience level doesn't match requirements");
+      }
+      
+      if (!result.candidate.projects || result.candidate.projects.length === 0) {
+        reasons.push("No relevant project experience");
+      }
+    }
+    
+    return reasons.length > 0 ? reasons.join('; ') : 
+           status === 'shortlisted' ? 'Meets job requirements' : 'Does not meet requirements';
+  };
+
+  // Export rejected candidates with reasons
+  const handleExportRejected = () => {
     if (!matchData) return;
 
     try {
@@ -325,7 +398,7 @@ export default function CandidateMatching() {
         "Experience (Years)",
         "Number of Projects",
         "Status",
-        "Reason", // AI insights / reason
+        "Rejection Reason",
       ];
 
       const rows = rejectedResults.map((result) => [
@@ -344,7 +417,7 @@ export default function CandidateMatching() {
         result.candidate.experience || 0,
         result.candidate.projects?.length || 0,
         result.status,
-        result.aiInsights || "-", // reason
+        generateReason(result, 'rejected'),
       ]);
 
       const csvContent = [
@@ -383,8 +456,104 @@ export default function CandidateMatching() {
     }
   };
 
-  // Updated score-to-color mapping:
-  // >=80 green, >=70 blue, >=60 amber, else red
+  // Export shortlisted candidates with reasons
+  const handleExportShortlisted = () => {
+    if (!matchData) return;
+
+    try {
+      const shortlistedResults = filteredResults.filter(
+        (r) => r.status === "shortlisted"
+      );
+
+      if (shortlistedResults.length === 0) {
+        toast({
+          title: "No Shortlisted Candidates",
+          description: "There are no shortlisted candidates to export",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const headers = [
+        "Rank",
+        "Name",
+        "Email",
+        "Phone",
+        "College",
+        "Branch",
+        "CGPA",
+        "Overall Score",
+        "Skill Score",
+        "Experience Score",
+        "Project Score",
+        "Matched Skills",
+        "Missing Skills",
+        "Experience (Years)",
+        "Number of Projects",
+        "Status",
+        "Selection Reason",
+        "LinkedIn",
+        "GitHub",
+      ];
+
+      const rows = shortlistedResults.map((result) => [
+        result.rank || "-",
+        result.candidate.name,
+        result.candidate.email,
+        
+        result.candidate.college,
+        result.candidate.branch || "-",
+        result.candidate.cgpa?.toFixed(2) || "-",
+        `${result.overallScore}%`,
+        `${result.breakdown.skillScore}%`,
+        `${result.breakdown.experienceScore}%`,
+        `${result.breakdown.projectScore}%`,
+        result.matchedSkills.join("; "),
+        result.missingSkills.join("; ") || "None",
+        result.candidate.experience || 0,
+        result.candidate.projects?.length || 0,
+        result.status,
+        generateReason(result, 'shortlisted'),
+       
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+        ),
+      ].join("\n");
+
+      const bom = "\uFEFF";
+      const blob = new Blob([bom + csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `candidates-shortlisted-${matchData.jobId}-${new Date()
+        .toISOString()
+        .split("T")[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Successful",
+        description: `Exported ${shortlistedResults.length} shortlisted candidate(s) to CSV`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Export Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Updated score-to-color mapping
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-green-600 dark:text-green-400";
     if (score >= 70) return "text-blue-600 dark:text-blue-400";
@@ -392,7 +561,7 @@ export default function CandidateMatching() {
     return "text-red-600 dark:text-red-400";
   };
 
-  // ✅ FIX: Get initials for professional avatar
+  // Get initials for professional avatar
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -402,7 +571,7 @@ export default function CandidateMatching() {
       .slice(0, 2);
   };
 
-  // ✅ FIX: Get color based on name
+  // Get color based on name
   const getAvatarColor = (name: string) => {
     const colors = [
       "bg-blue-600",
@@ -446,7 +615,6 @@ export default function CandidateMatching() {
       accessor: "candidate",
       cell: (candidate: MatchResult["candidate"]) => (
         <div className="flex items-center gap-3">
-          {/* ✅ FIX: Professional initials avatar instead of cartoon */}
           <div
             className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm ${getAvatarColor(
               candidate.name
@@ -658,7 +826,7 @@ export default function CandidateMatching() {
                   size="sm"
                   variant="ghost"
                   onClick={(e) => {
-                    e.stopPropagation(); // ✅ FIX: Prevent event bubbling
+                    e.stopPropagation();
                     navigate(`/recruitment/candidate/${id}`);
                   }}
                 >
@@ -676,7 +844,7 @@ export default function CandidateMatching() {
                   size="sm"
                   variant="ghost"
                   onClick={(e) => {
-                    e.stopPropagation(); // ✅ FIX: Prevent event bubbling
+                    e.stopPropagation();
                     handleStatusUpdate(id, "shortlisted");
                   }}
                   disabled={row.status === "shortlisted"}
@@ -695,7 +863,7 @@ export default function CandidateMatching() {
                   size="sm"
                   variant="ghost"
                   onClick={(e) => {
-                    e.stopPropagation(); // ✅ FIX: Prevent event bubbling
+                    e.stopPropagation();
                     handleStatusUpdate(id, "rejected");
                   }}
                   disabled={row.status === "rejected"}
@@ -750,11 +918,31 @@ export default function CandidateMatching() {
         description={`Analyzed ${matchData.totalCandidates} candidates in ${matchData.executionTime}ms`}
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
-              Export Rejected CSV
-            </Button>
-            {/* ✅ FIX: Corrected navigation path if needed */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export CSV
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={handleExportShortlisted}>
+                  <UserCheck className="w-4 h-4 mr-2 text-green-600" />
+                  Export Shortlisted
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {filteredResults.filter(r => r.status === 'shortlisted').length}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleExportRejected}>
+                  <UserX className="w-4 h-4 mr-2 text-red-600" />
+                  Export Rejected
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {filteredResults.filter(r => r.status === 'rejected').length}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               onClick={() => navigate("/Recruitment/calculator")}
             >
