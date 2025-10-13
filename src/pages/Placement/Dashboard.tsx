@@ -1,94 +1,101 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/Placement/PageHeader";
 import { StatCard } from "@/components/Placement/StatCard";
-import { Users, CheckCircle, XCircle, Briefcase, FileText, TrendingUp } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { format, formatDistanceToNow } from "date-fns";
+import { Users, CheckCircle, XCircle, Briefcase, FileText, CalendarCheck } from "lucide-react";
+import { db } from "@/firebaseConfig";
+import { collection, onSnapshot, Timestamp } from "firebase/firestore";
+import { formatDistanceToNow } from "date-fns";
 
 interface Activity {
   id: string;
-  action: string;
-  company: string;
-  created_at: string;
+  type: "job" | "event";
+  title: string;
+  company?: string;
+  event_date?: Timestamp;
+  created_at: Timestamp;
 }
 
 export default function Dashboard() {
   const [studentsCount, setStudentsCount] = useState(0);
   const [verifiedCount, setVerifiedCount] = useState(0);
+  const [unverifiedCount, setUnverifiedCount] = useState(0);
   const [recruitersCount, setRecruitersCount] = useState(0);
   const [jobsCount, setJobsCount] = useState(0);
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
-    fetchDashboardData();
+    // Students - real-time updates
+    const unsubscribeStudents = onSnapshot(collection(db, "students"), (snapshot) => {
+      const students = snapshot.docs.map((doc) => doc.data() as any);
+      const verified = students.filter((s) => s.verification_status === "verified").length;
+      const unverified = students.filter((s) => s.verification_status !== "verified").length;
 
-    // Real-time subscriptions
-    const studentsChannel = supabase
-      .channel('students-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, fetchDashboardData)
-      .subscribe();
+      setStudentsCount(students.length);
+      setVerifiedCount(verified);
+      setUnverifiedCount(unverified);
+    });
 
-    const recruitersChannel = supabase
-      .channel('recruiters-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'recruiters' }, fetchDashboardData)
-      .subscribe();
+    // Recruiters
+    const unsubscribeRecruiters = onSnapshot(collection(db, "recruiter"), (snapshot) => {
+      setRecruitersCount(snapshot.docs.length);
+    });
 
-    const jobsChannel = supabase
-      .channel('jobs-dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, fetchDashboardData)
-      .subscribe();
+    // Jobs
+    const unsubscribeJobs = onSnapshot(collection(db, "jobs"), (snapshot) => {
+      const jobs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[];
+
+      // Jobs this month
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      const jobsThisMonth = jobs.filter((job) => job.created_at?.toDate() >= startOfMonth);
+      setJobsCount(jobsThisMonth.length);
+
+      // Job activities
+      const jobActivities: Activity[] = jobs.map((job) => ({
+        id: job.id,
+        type: "job",
+        title: `Job Posted: ${job.title}`,
+        company: job.company,
+        created_at: job.created_at,
+      }));
+
+      setRecentActivities((prev) => {
+        const existingEvents: Activity[] = prev.filter((a) => a.type === "event");
+        const merged = [...jobActivities, ...existingEvents].sort(
+          (a, b) => b.created_at.toDate().getTime() - a.created_at.toDate().getTime()
+        );
+        return merged.slice(0, 5);
+      });
+    });
+
+    // Calendar events
+    const unsubscribeEvents = onSnapshot(collection(db, "calendar_events"), (snapshot) => {
+      const events = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[];
+
+      const eventActivities: Activity[] = events.map((event) => ({
+        id: event.id,
+        type: "event",
+        title: `Event: ${event.title} (${event.event_type})`,
+        event_date: event.event_date,
+        created_at: event.created_at,
+      }));
+
+      setRecentActivities((prev) => {
+        const existingJobs: Activity[] = prev.filter((a) => a.type === "job");
+        const merged = [...existingJobs, ...eventActivities].sort(
+          (a, b) => b.created_at.toDate().getTime() - a.created_at.toDate().getTime()
+        );
+        return merged.slice(0, 5);
+      });
+    });
 
     return () => {
-      supabase.removeChannel(studentsChannel);
-      supabase.removeChannel(recruitersChannel);
-      supabase.removeChannel(jobsChannel);
+      unsubscribeStudents();
+      unsubscribeRecruiters();
+      unsubscribeJobs();
+      unsubscribeEvents();
     };
   }, []);
-
-  const fetchDashboardData = async () => {
-    // Fetch students count
-    const { count: totalStudents } = await supabase
-      .from('students')
-      .select('*', { count: 'exact', head: true });
-
-    const { count: verified } = await supabase
-      .from('students')
-      .select('*', { count: 'exact', head: true })
-      .eq('verification_status', 'verified');
-
-    // Fetch recruiters count
-    const { count: recruiters } = await supabase
-      .from('recruiters')
-      .select('*', { count: 'exact', head: true });
-
-    // Fetch jobs count (this month)
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    const { count: jobs } = await supabase
-      .from('jobs')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', startOfMonth.toISOString());
-
-    // Fetch recent activities
-    const { data: recentJobs } = await supabase
-      .from('jobs')
-      .select('id, title, company, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    const activities: Activity[] = (recentJobs || []).map(job => ({
-      id: job.id,
-      action: `New job posted: ${job.title}`,
-      company: job.company,
-      created_at: job.created_at
-    }));
-
-    setStudentsCount(totalStudents || 0);
-    setVerifiedCount(verified || 0);
-    setRecruitersCount(recruiters || 0);
-    setJobsCount(jobs || 0);
-    setRecentActivities(activities);
-  };
 
   const stats = [
     {
@@ -105,7 +112,7 @@ export default function Dashboard() {
     },
     {
       title: "Unverified Students",
-      value: (studentsCount - verifiedCount).toString(),
+      value: unverifiedCount.toString(),
       icon: XCircle,
       description: "Pending verification",
     },
@@ -124,7 +131,7 @@ export default function Dashboard() {
     {
       title: "Placement Rate",
       value: studentsCount > 0 ? `${((verifiedCount / studentsCount) * 100).toFixed(1)}%` : "0%",
-      icon: TrendingUp,
+      icon: CalendarCheck,
       description: "Current academic year",
     },
   ];
@@ -142,7 +149,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Recent Activity Section */}
+      {/* Recent Activity */}
       <div className="mt-8">
         <h2 className="text-xl font-semibold text-foreground mb-4">
           Recent Activity
@@ -156,11 +163,16 @@ export default function Dashboard() {
                   className="flex items-center justify-between py-3 border-b border-border last:border-0"
                 >
                   <div>
-                    <p className="font-medium text-foreground">{activity.action}</p>
-                    <p className="text-sm text-muted-foreground">{activity.company}</p>
+                    <p className="font-medium text-foreground">{activity.title}</p>
+                    {activity.company && <p className="text-sm text-muted-foreground">{activity.company}</p>}
+                    {activity.event_date && (
+                      <p className="text-sm text-muted-foreground">
+                        Event Date: {activity.event_date.toDate().toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   <span className="text-sm text-muted-foreground">
-                    {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
+                    {formatDistanceToNow(activity.created_at.toDate(), { addSuffix: true })}
                   </span>
                 </div>
               ))

@@ -11,7 +11,8 @@ import { toast } from "sonner";
 import { BulkUploadDialog } from "@/components/Placement/BulkUploadDialog";
 import { SendNotificationDialog } from "@/components/Placement/SendNotificationDialog";
 import { StudentDetailsDialog } from "@/components/Placement/StudentDetailsDialog";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/firebaseConfig";
+import { collection, onSnapshot, updateDoc, addDoc, doc, query, orderBy } from "firebase/firestore";
 
 interface Student {
   id: string;
@@ -32,80 +33,61 @@ export default function Students() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
+  // Fetch students in real-time
   useEffect(() => {
-    fetchStudents();
-    
-    // Subscribe to realtime changes
-    const channel = supabase
-      .channel('students-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => {
-        fetchStudents();
-      })
-      .subscribe();
-    
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const studentsRef = collection(db, "students");
+    const q = query(studentsRef, orderBy("Name", "asc")); // Firestore field "Name"
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const studentsData = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.Name || "",
+            branch: data.Branch || "",
+            reg_no: data.RegNo || "",
+            email: data.Email || "",
+            skills: data.Skills
+              ? Array.isArray(data.Skills)
+                ? data.Skills
+                : [data.Skills]
+              : [],
+            verification_status: data.verification_status
+              ? (data.verification_status.toLowerCase() as "verified" | "unverified" | "pending")
+              : "unverified",
+          } as Student;
+        });
+        setStudents(studentsData);
+        setLoading(false);
+      },
+      (error) => {
+        toast.error(`Failed to fetch students: ${error.message}`);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
-  const fetchStudents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setStudents((data || []) as Student[]);
-    } catch (error: any) {
-      toast.error(`Failed to fetch students: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Filter students
   const filteredStudents = students.filter((student) => {
     const matchesBranch = selectedBranch === "all" || student.branch === selectedBranch;
     const matchesStatus = selectedStatus === "all" || student.verification_status === selectedStatus;
-    const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          student.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesSearch =
+      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.skills.some((skill) => skill.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesBranch && matchesStatus && matchesSearch;
   });
 
-  const handleStudentsUploaded = async (newStudents: any[]) => {
-    try {
-      const { error } = await supabase.from('students').insert(
-        newStudents.map(s => ({
-          name: s.name,
-          email: s.email,
-          reg_no: s.rollNo || s.reg_no,
-          branch: s.branch,
-          skills: s.skills,
-          verification_status: 'unverified'
-        }))
-      );
-      
-      if (error) throw error;
-      toast.success(`${newStudents.length} students uploaded successfully!`);
-      fetchStudents();
-    } catch (error: any) {
-      toast.error(`Failed to upload students: ${error.message}`);
-    }
-  };
-
+  // Toggle verification status
   const handleToggleVerification = async (student: Student) => {
     try {
-      const newStatus = student.verification_status === 'verified' ? 'unverified' : 'verified';
-      
-      const { error } = await supabase
-        .from('students')
-        .update({ verification_status: newStatus })
-        .eq('id', student.id);
-      
-      if (error) throw error;
-      
-      toast.success(`${student.name} is now ${newStatus}!`);
-      fetchStudents();
+      const newStatus = student.verification_status === "verified" ? "unverified" : "verified";
+      const studentDoc = doc(db, "students", student.id);
+      await updateDoc(studentDoc, { verification_status: newStatus });
+      toast.success(`${student.name} is now ${newStatus}`);
     } catch (error: any) {
       toast.error(`Failed to update verification: ${error.message}`);
     }
@@ -114,6 +96,31 @@ export default function Students() {
   const handleView = (student: Student) => {
     setSelectedStudent(student);
     setDetailsOpen(true);
+  };
+
+  // Handle bulk upload
+  const handleStudentsUploaded = async (newStudents: any[]) => {
+    try {
+      const batchPromises = newStudents.map((s) =>
+        addDoc(collection(db, "students"), {
+          Name: s.name || s.Name || "",
+          Email: s.email || s.Email || "",
+          RegNo: s.reg_no || s.RegNo || "",
+          Branch: s.branch || s.Branch || "",
+          Skills: s.skills || s.Skills
+            ? Array.isArray(s.skills || s.Skills)
+              ? s.skills || s.Skills
+              : [s.skills || s.Skills]
+            : [],
+          verification_status: "unverified",
+        })
+      );
+
+      await Promise.all(batchPromises);
+      toast.success(`${newStudents.length} students uploaded successfully!`);
+    } catch (error: any) {
+      toast.error(`Failed to upload students: ${error.message}`);
+    }
   };
 
   const columns = [
@@ -132,14 +139,8 @@ export default function Students() {
         </div>
       ),
     },
-    {
-      key: "email",
-      header: "Email",
-    },
-    {
-      key: "reg_no",
-      header: "Reg No",
-    },
+    { key: "email", header: "Email" },
+    { key: "reg_no", header: "Reg No" },
     {
       key: "verification_status",
       header: "Status",
@@ -152,11 +153,7 @@ export default function Students() {
               ? "outline"
               : "destructive"
           }
-          className={
-            student.verification_status === "verified"
-              ? "bg-success text-success-foreground"
-              : ""
-          }
+          className={student.verification_status === "verified" ? "bg-success text-success-foreground" : ""}
         >
           {student.verification_status}
         </Badge>
@@ -167,13 +164,8 @@ export default function Students() {
       header: "Actions",
       render: (student: Student) => (
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleView(student)}
-          >
-            <Eye className="w-4 h-4 mr-1" />
-            View
+          <Button size="sm" variant="outline" onClick={() => handleView(student)}>
+            <Eye className="w-4 h-4 mr-1" /> View
           </Button>
           <Button
             size="sm"
@@ -242,7 +234,7 @@ export default function Students() {
         )}
       </div>
 
-      <StudentDetailsDialog 
+      <StudentDetailsDialog
         student={selectedStudent}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
