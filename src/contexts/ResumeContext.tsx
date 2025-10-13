@@ -17,7 +17,7 @@ export const ResumeProvider: React.FC<React.PropsWithChildren<{}>> = ({ children
 
 export function useResume() {
   const ctx = useContext(ResumeContext);
-  if (!ctx) throw new Error("useResume must be used within a ResumeProvider");
+  if (!ctx) throw new Error("useResume must be used within the ResumeProvider");
   return ctx;
 }
 
