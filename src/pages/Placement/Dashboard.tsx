@@ -16,7 +16,6 @@ interface Activity {
   created_at: Timestamp;
 }
 import { Button } from "@/components/ui/button";
-import { Users, CheckCircle, XCircle, Briefcase, FileText, TrendingUp } from "lucide-react";
 
 export default function Dashboard() {
   const [studentsCount, setStudentsCount] = useState(0);

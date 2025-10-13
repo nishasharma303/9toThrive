@@ -3,8 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppSidebar } from "./components/AppSidebar";
 import { JobProvider } from "./contexts/JobContext";
 import { ResumeProvider } from "./contexts/ResumeContext";
@@ -36,7 +35,6 @@ import Communication from "./pages/Placement/Communication";
 import Settings from "./pages/Placement/Settings";
 import CalendarPage from "./pages/Placement/Calendar";
 import RecruitmentTracking from "./pages/Placement/RecruitmentTracking";
-import NotFound from "./pages/NotFound";
 
 // Recruitment dashboard imports
 import { RecruitmentLayout } from "./components/layout/RecruitmentLayout";
@@ -87,24 +85,6 @@ const AppContent = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/placement" replace />} />
-          <Route path="/placement" element={<PlacementLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="students" element={<Students />} />
-            <Route path="recruiters" element={<Recruiters />} />
-            <Route path="jobs" element={<Jobs />} />
-            <Route path="communication" element={<Communication />} />
-            <Route path="calendar" element={<CalendarPage />} />
-            <Route path="recruitment-tracking" element={<RecruitmentTracking />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
       <JobProvider>
         <ResumeProvider>
   <Sonner />
@@ -129,8 +109,9 @@ const App = () => (
               <Route path="students" element={<Students />} />
               <Route path="recruiters" element={<Recruiters />} />
               <Route path="jobs" element={<Jobs />} />
-              <Route path="analytics" element={<Analytics />} />
               <Route path="communication" element={<Communication />} />
+              <Route path="calendar" element={<CalendarPage />} />
+              <Route path="recruitment-tracking" element={<RecruitmentTracking />} />
               <Route path="settings" element={<Settings />} />
             </Route>
 
