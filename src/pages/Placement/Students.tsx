@@ -10,6 +10,7 @@ import { CheckCircle, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { BulkUploadDialog } from "@/components/Placement/BulkUploadDialog";
 import { SendNotificationDialog } from "@/components/Placement/SendNotificationDialog";
+import { StudentDetailsDialog } from "@/components/Placement/StudentDetailsDialog";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Student {
@@ -28,6 +29,8 @@ export default function Students() {
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     fetchStudents();
@@ -108,8 +111,9 @@ export default function Students() {
     }
   };
 
-  const handleView = (studentName: string) => {
-    toast.info(`Viewing details for ${studentName}`);
+  const handleView = (student: Student) => {
+    setSelectedStudent(student);
+    setDetailsOpen(true);
   };
 
   const columns = [
@@ -166,7 +170,7 @@ export default function Students() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => handleView(student.name)}
+            onClick={() => handleView(student)}
           >
             <Eye className="w-4 h-4 mr-1" />
             View
@@ -237,6 +241,12 @@ export default function Students() {
           <DataTable data={filteredStudents} columns={columns} />
         )}
       </div>
+
+      <StudentDetailsDialog 
+        student={selectedStudent}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+      />
     </div>
   );
 }

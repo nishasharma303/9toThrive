@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/Placement/PageHeader";
 import { DataTable } from "@/components/Placement/Datatable";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Download, Flag } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { exportToExcel } from "@/utils/excelExport";
 import { PostJobDialog } from "@/components/Placement/PostJobDialog";
@@ -83,22 +83,18 @@ export default function Jobs() {
     }
   };
 
-  const handleScheduleDrive = (jobTitle: string) => {
-    toast.success(`Placement drive scheduled for ${jobTitle}`);
-  };
-
-  const handleToggleFlag = async (job: Job) => {
+  const handleDeleteJob = async (jobId: string) => {
     try {
       const { error } = await supabase
         .from('jobs')
-        .update({ flagged: !job.flagged, status: !job.flagged ? 'draft' : 'active' })
-        .eq('id', job.id);
+        .delete()
+        .eq('id', jobId);
       
       if (error) throw error;
-      toast.success(`Job ${!job.flagged ? 'flagged' : 'unflagged'} successfully!`);
+      toast.success("Job deleted successfully!");
       fetchJobs();
     } catch (error: any) {
-      toast.error(`Failed to update job: ${error.message}`);
+      toast.error(`Failed to delete job: ${error.message}`);
     }
   };
 
@@ -150,24 +146,14 @@ export default function Jobs() {
       key: "actions",
       header: "Actions",
       render: (job: Job) => (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleScheduleDrive(job.title)}
-          >
-            <Calendar className="w-4 h-4 mr-1" />
-            Schedule
-          </Button>
-          <Button
-            size="sm"
-            variant={job.flagged ? "default" : "destructive"}
-            onClick={() => handleToggleFlag(job)}
-          >
-            <Flag className="w-4 h-4 mr-1" />
-            {job.flagged ? "Unflag" : "Flag"}
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={() => handleDeleteJob(job.id)}
+        >
+          <Trash2 className="w-4 h-4 mr-1" />
+          Delete
+        </Button>
       ),
     },
   ];

@@ -4,9 +4,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ChevronRight, Users } from "lucide-react";
+import { Users, Trash2 } from "lucide-react";
+import { AddRecruitmentDialog } from "@/components/Placement/AddRecruitmentDialog";
 
 interface CompanyRound {
   id: string;
@@ -60,6 +62,25 @@ export default function RecruitmentTracking() {
     }
   };
 
+  const handleRoundAdded = async (newRound: any) => {
+    try {
+      const { error } = await supabase.from('company_rounds').insert({
+        company_name: newRound.company_name,
+        job_role: newRound.job_role,
+        total_applicants: newRound.total_applicants,
+        current_stage: 'Application Screening',
+        stages: [],
+        students_qualified: []
+      });
+
+      if (error) throw error;
+      toast.success("Recruitment round added successfully!");
+      fetchRounds();
+    } catch (error: any) {
+      toast.error(`Failed to add round: ${error.message}`);
+    }
+  };
+
   const handleStageUpdate = async (roundId: string, newStage: string) => {
     try {
       const { error } = await supabase
@@ -75,6 +96,21 @@ export default function RecruitmentTracking() {
     }
   };
 
+  const handleDeleteRound = async (roundId: string) => {
+    try {
+      const { error } = await supabase
+        .from('company_rounds')
+        .delete()
+        .eq('id', roundId);
+
+      if (error) throw error;
+      toast.success("Round deleted successfully!");
+      fetchRounds();
+    } catch (error: any) {
+      toast.error(`Failed to delete round: ${error.message}`);
+    }
+  };
+
   const getStageIndex = (stage: string) => STAGES.indexOf(stage);
   const getProgressPercentage = (stage: string) => 
     ((getStageIndex(stage) + 1) / STAGES.length) * 100;
@@ -84,6 +120,7 @@ export default function RecruitmentTracking() {
       <PageHeader
         title="Recruitment Tracking"
         description="Track company recruitment rounds and stages"
+        actions={<AddRecruitmentDialog onRoundAdded={handleRoundAdded} />}
       />
 
       <div className="mt-6 space-y-4">
@@ -95,8 +132,17 @@ export default function RecruitmentTracking() {
           </Card>
         ) : (
           rounds.map((round) => (
-            <Card key={round.id} className="p-6">
-              <div className="flex justify-between items-start mb-4">
+            <Card key={round.id} className="p-6 relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-4 right-4"
+                onClick={() => handleDeleteRound(round.id)}
+              >
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+
+              <div className="flex justify-between items-start mb-4 pr-12">
                 <div>
                   <h3 className="text-xl font-semibold">{round.company_name}</h3>
                   <p className="text-muted-foreground">{round.job_role}</p>
@@ -115,24 +161,27 @@ export default function RecruitmentTracking() {
                 <Progress value={getProgressPercentage(round.current_stage)} className="h-2" />
               </div>
 
-              <div className="flex flex-wrap gap-2 mb-4">
+              <div className="space-y-3 mb-4">
                 {STAGES.map((stage, index) => {
                   const currentIndex = getStageIndex(round.current_stage);
                   const isActive = index === currentIndex;
                   const isCompleted = index < currentIndex;
                   
                   return (
-                    <div key={stage} className="flex items-center">
-                      <Badge
-                        variant={isActive ? "default" : isCompleted ? "secondary" : "outline"}
-                        className={`cursor-pointer ${isActive ? "bg-primary" : ""}`}
-                        onClick={() => handleStageUpdate(round.id, stage)}
-                      >
-                        {stage}
+                    <div key={stage} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/30 transition-colors">
+                      <Checkbox
+                        checked={isCompleted || isActive}
+                        onCheckedChange={() => handleStageUpdate(round.id, stage)}
+                        className="h-5 w-5"
+                      />
+                      <div className="flex-1">
+                        <p className={`font-medium ${isActive ? 'text-primary' : isCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
+                          {stage}
+                        </p>
+                      </div>
+                      <Badge variant={isActive ? "default" : isCompleted ? "secondary" : "outline"}>
+                        {isActive ? "In Progress" : isCompleted ? "Completed" : "Pending"}
                       </Badge>
-                      {index < STAGES.length - 1 && (
-                        <ChevronRight className="w-4 h-4 mx-1 text-muted-foreground" />
-                      )}
                     </div>
                   );
                 })}

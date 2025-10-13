@@ -87,16 +87,17 @@ export default function Settings() {
   };
 
   const handleDeleteOfficer = async (id: string) => {
-    const { error } = await supabase
-      .from('placement_officers')
-      .delete()
-      .eq('id', id);
+    try {
+      const { error } = await supabase
+        .from('placement_officers')
+        .delete()
+        .eq('id', id);
 
-    if (error) {
-      toast.error(`Failed to delete officer: ${error.message}`);
-    } else {
+      if (error) throw error;
       toast.success("Officer deleted successfully");
       fetchOfficers();
+    } catch (error: any) {
+      toast.error(`Failed to delete officer: ${error.message}`);
     }
   };
 
