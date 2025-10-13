@@ -68,7 +68,11 @@ const HowItWorks = () => {
                 </p>
               </div>
               {index < steps.length - 1 && (
-                <div className="hidden md:block absolute top-10 -right-6 w-12 h-0.5 bg-gradient-to-r from-[#e25c28ff] to-transparent animate-pulse shadow-[0_0_15px_rgba(226,92,40,0.6)]" />
+                <div className="hidden md:block absolute top-10 -right-6 w-12">
+                  <div className="relative h-0.5 bg-gradient-to-r from-[#e25c28ff] to-transparent animate-pulse shadow-[0_0_15px_rgba(226,92,40,0.6)]">
+                    <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-t-transparent border-b-4 border-b-transparent border-l-8 border-l-[#e25c28ff] animate-pulse shadow-[0_0_15px_rgba(226,92,40,0.6)]" />
+                  </div>
+                </div>
               )}
             </motion.div>
           ))}

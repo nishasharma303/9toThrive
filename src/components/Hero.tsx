@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import SignInDialog from "@/components/SignInDialog";
 import { BackgroundPaths } from "@/components/ui/background-paths";
 import DisplayCards from "@/components/ui/display-cards";
 import { ArrowRight } from "lucide-react";
@@ -55,18 +56,22 @@ const Hero = () => {
                 Get Started
                 <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-2 px-8 py-6 text-lg font-semibold rounded-2xl transition-all duration-300 hover:border-[#e25c28ff]"
-                style={{ 
-                  borderColor: '#e25c28ff',
-                  color: '#F1F7ED',
-                  backgroundColor: 'transparent'
-                }}
-              >
-                Sign In
-              </Button>
+              <SignInDialog
+                trigger={
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="border-2 px-8 py-6 text-lg font-semibold rounded-2xl transition-all duration-300 hover:border-[#e25c28ff]"
+                    style={{
+                      borderColor: '#e25c28ff',
+                      color: '#F1F7ED',
+                      backgroundColor: 'transparent',
+                    }}
+                  >
+                    Sign In
+                  </Button>
+                }
+              />
             </motion.div>
           </motion.div>
 

@@ -33,7 +33,20 @@ const CTA = () => {
             <Button
               size="lg"
               variant="outline"
-              className="border-2 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 px-8 py-6 text-lg font-semibold rounded-2xl transition-all duration-300"
+              className="border-2 px-8 py-6 text-lg font-semibold rounded-2xl transition-all duration-300"
+              style={{
+                borderColor: '#e25c28ff',
+                color: '#e25c28ff',
+                backgroundColor: 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#e25c28ff';
+                e.currentTarget.style.color = '#f1f7edff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#e25c28ff';
+              }}
             >
               Schedule a Demo
             </Button>
@@ -41,25 +54,31 @@ const CTA = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             {[
-              { icon: Users, label: "Students", action: "Build Your Profile" },
-              { icon: Briefcase, label: "Recruiters", action: "Post Jobs" },
-              { icon: BarChart3, label: "Placement Cell", action: "Manage Drives" },
+              { icon: Users, label: "Students", action: "Build Your Profile", link: "/student/resume-upload" },
+              { icon: Briefcase, label: "Recruiters", action: "Post Jobs" , link: "/Recruitment"},
+              { icon: BarChart3, label: "Placement Cell", action: "Manage Drives", link: "/placement" },
             ].map((item, index) => (
-              <motion.div
+              <motion.a
                 key={item.label}
+                href={item.link}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: index * 0.15 }}
-                className="backdrop-blur-sm p-6 rounded-2xl border transition-all duration-300"
+                className="backdrop-blur-sm p-6 rounded-2xl border transition-all duration-300 cursor-pointer group relative"
                 style={{ backgroundColor: 'rgba(1, 22, 39, 0.5)', borderColor: 'rgba(226, 92, 40, 0.3)' }}
               >
                 <item.icon className="mx-auto mb-3" style={{ color: '#f1f7edff' }} size={32} />
-                <h3 className="text-lg font-semibold mb-1" style={{ color: '#e25c28ff' }}>
+                <h3 className="text-lg font-semibold mb-1 flex items-center justify-center gap-2" style={{ color: '#e25c28ff' }}>
                   {item.label}
+                  <ArrowRight 
+                    className="transition-all duration-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-1" 
+                    size={18}
+                    style={{ color: '#e25c28ff' }}
+                  />
                 </h3>
                 <p className="text-sm" style={{ color: '#f1f7edff' }}>{item.action}</p>
-              </motion.div>
+              </motion.a>
             ))}
           </div>
         </motion.div>

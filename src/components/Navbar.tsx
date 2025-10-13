@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import SignInDialog from "@/components/SignInDialog";
 import { Menu, X } from "lucide-react";
 
 const Navbar = () => {
@@ -45,13 +46,17 @@ const Navbar = () => {
           </div>
 
           <div className="hidden md:block">
-            <Button 
-              variant="default" 
-              className="transition-all duration-300 hover:shadow-lg hover:scale-105"
-              style={{ backgroundColor: '#e25c28ff', color: '#f1f7edff' }}
-            >
-              Sign In
-            </Button>
+            <SignInDialog
+              trigger={
+                <Button
+                  variant="default"
+                  className="transition-all duration-300 hover:shadow-lg hover:scale-105"
+                  style={{ backgroundColor: '#e25c28ff', color: '#f1f7edff' }}
+                >
+                  Sign In
+                </Button>
+              }
+            />
           </div>
 
           <button
@@ -78,13 +83,17 @@ const Navbar = () => {
                 {link.name}
               </a>
             ))}
-            <Button 
-              variant="default" 
-              className="w-full"
-              style={{ backgroundColor: '#e25c28ff', color: '#f1f7edff' }}
-            >
-              Sign In
-            </Button>
+            <SignInDialog
+              trigger={
+                <Button
+                  variant="default"
+                  className="w-full"
+                  style={{ backgroundColor: '#e25c28ff', color: '#f1f7edff' }}
+                >
+                  Sign In
+                </Button>
+              }
+            />
           </div>
         </div>
       )}

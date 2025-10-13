@@ -16,7 +16,7 @@ const Footer = () => {
   ];
 
   return (
-    <footer id="contact" className="bg-primary text-primary-foreground py-16">
+    <footer id="contact" className="bg-[#011627ff] text-primary-foreground py-16">
       <div className="container mx-auto px-4 md:px-6">
         <div className="grid grid-cols-2 md:grid-cols-6 gap-8 mb-12">
           <div className="col-span-2">
