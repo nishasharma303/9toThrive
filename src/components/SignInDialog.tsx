@@ -86,7 +86,7 @@ export default function SignInDialog({ trigger }: Props) {
       console.log("✅ Account created with role:", role);
 
       // route based on role
-      if (role === "student") navigate("/dashboard", { replace: true });
+      if (role === "student") navigate("/student", { replace: true });
       else if (role === "recruiter") navigate("/recruitment", { replace: true });
       else navigate("/placement", { replace: true });
     }
