@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/layout/PageHeaderRec";
 import { DataTable } from "@/components/Recruitment/Table";
 import { FilterBar } from "@/components/Recruitment/Bar";
@@ -46,6 +46,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { NewJobDialog } from "@/pages/Recruitment/Components/NewJobDialog";
+import { 
+  getAllJobPostings, 
+  deleteJobPosting, 
+  updateJobPosting
+} from "@/pages/Recruitment/Services/jobPostingService";
+import type { JobPosting } from "@/pages/Recruitment/Services/jobPostingService";
 
 const stats = [
   { title: "Total Job Views", value: "24.5K", icon: Eye, trend: { value: 18, isPositive: true } },
@@ -54,215 +60,37 @@ const stats = [
   { title: "Avg. Time to Fill", value: "18 Days", icon: Clock, trend: { value: 5, isPositive: false } },
 ];
 
-const initialJobData = [
-  {
-    id: 1,
-    title: "Senior Frontend Developer",
-    company: "TechCorp Solutions Pvt Ltd",
-    department: "Engineering",
-    location: "Bangalore, Karnataka",
-    workMode: "Hybrid",
-    skills: "React, TypeScript, Node.js",
-    salary: "₹12-18 LPA",
-    salaryMin: "12",
-    salaryMax: "18",
-    salaryVisible: true,
-    experience: "3-5 years",
-    education: "Bachelor's in CS",
-    jobType: "Full-time",
-    openings: 2,
-    openingsVisible: true,
-    applicants: 87,
-    shortlisted: 6,
-    interviewed: 4,
-    offered: 2,
-    views: 1243,
-    applicationRate: "7.0%",
-    postedDate: "2024-01-10",
-    closingDate: "2024-02-10",
-    daysActive: 15,
-    status: "Active",
-    priority: "High",
-    performance: "High",
-    description: "We are looking for an experienced Frontend Developer to join our team...",
-    responsibilities: "• Lead frontend development\n• Code reviews\n• Mentor junior developers",
-    requirements: "• 3+ years React experience\n• Strong TypeScript skills\n• Team player",
-    benefits: "• Health insurance\n• Flexible working hours\n• Learning budget",
-    recruiterName: "John Doe",
-    recruiterEmail: "john.doe@techcorp.com",
-    recruiterPhone: "+91 98765 43210",
-    recruiterVisible: true,
-    screeningQuestions: "",
-  },
-  {
-    id: 2,
-    title: "Data Scientist",
-    company: "DataMinds Analytics",
-    department: "Analytics",
-    location: "Pune, Maharashtra",
-    workMode: "Remote",
-    skills: "Python, ML, TensorFlow",
-    salary: "₹15-22 LPA",
-    salaryMin: "15",
-    salaryMax: "22",
-    salaryVisible: true,
-    experience: "4-7 years",
-    education: "Master's in Data Science",
-    jobType: "Full-time",
-    openings: 3,
-    openingsVisible: true,
-    applicants: 134,
-    shortlisted: 15,
-    interviewed: 9,
-    offered: 3,
-    views: 2156,
-    applicationRate: "6.2%",
-    postedDate: "2024-01-08",
-    closingDate: "2024-02-08",
-    daysActive: 17,
-    status: "Active",
-    priority: "Urgent",
-    performance: "High",
-    description: "Join our data science team to build cutting-edge ML models...",
-    responsibilities: "• Develop ML models\n• Data analysis\n• Present insights",
-    requirements: "• 4+ years Python\n• ML/AI expertise\n• Statistical knowledge",
-    benefits: "• Remote work\n• Performance bonus\n• Conference budget",
-    recruiterName: "Sarah Smith",
-    recruiterEmail: "sarah@dataminds.com",
-    recruiterPhone: "+91 99887 65432",
-    recruiterVisible: false,
-    screeningQuestions: "Do you have experience with TensorFlow?\nAre you comfortable with remote work?",
-  },
-  {
-    id: 3,
-    title: "Product Manager",
-    company: "InnovatePro Technologies",
-    department: "Product",
-    location: "Mumbai, Maharashtra",
-    workMode: "On-site",
-    skills: "Agile, Strategy, Analytics",
-    salary: "₹18-25 LPA",
-    salaryMin: "18",
-    salaryMax: "25",
-    salaryVisible: false,
-    experience: "5-8 years",
-    education: "MBA or equivalent",
-    jobType: "Full-time",
-    openings: 1,
-    openingsVisible: false,
-    applicants: 56,
-    shortlisted: 5,
-    interviewed: 3,
-    offered: 1,
-    views: 892,
-    applicationRate: "6.3%",
-    postedDate: "2023-12-20",
-    closingDate: "2024-01-20",
-    daysActive: 35,
-    status: "Closed",
-    priority: "Normal",
-    performance: "Medium",
-    description: "Lead product strategy and roadmap for our flagship products...",
-    responsibilities: "• Product roadmap\n• Stakeholder management\n• Market research",
-    requirements: "• 5+ years PM experience\n• Agile methodology\n• Strategic thinking",
-    benefits: "• Stock options\n• Health coverage\n• Gym membership",
-    recruiterName: "",
-    recruiterEmail: "",
-    recruiterPhone: "",
-    recruiterVisible: false,
-    screeningQuestions: "",
-  },
-  {
-    id: 4,
-    title: "UI/UX Designer",
-    company: "DesignHub Studios",
-    department: "Design",
-    location: "Hyderabad, Telangana",
-    workMode: "Hybrid",
-    skills: "Figma, Sketch, Prototyping",
-    salary: "₹10-15 LPA",
-    salaryMin: "10",
-    salaryMax: "15",
-    salaryVisible: true,
-    experience: "2-4 years",
-    education: "Bachelor's in Design",
-    jobType: "Full-time",
-    openings: 2,
-    openingsVisible: true,
-    applicants: 92,
-    shortlisted: 12,
-    interviewed: 6,
-    offered: 2,
-    views: 1567,
-    applicationRate: "5.9%",
-    postedDate: "2024-01-12",
-    closingDate: "2024-02-12",
-    daysActive: 13,
-    status: "Active",
-    priority: "Normal",
-    performance: "Medium",
-    description: "Create beautiful, user-friendly designs for web and mobile...",
-    responsibilities: "• UI/UX design\n• User research\n• Design systems",
-    requirements: "• 2+ years design experience\n• Figma proficiency\n• Portfolio required",
-    benefits: "• Creative environment\n• Flexible hours\n• Latest tools",
-    recruiterName: "Mike Johnson",
-    recruiterEmail: "mike@designhub.com",
-    recruiterPhone: "+91 87654 32109",
-    recruiterVisible: true,
-    screeningQuestions: "Please share your portfolio link",
-  },
-  {
-    id: 5,
-    title: "Backend Engineer",
-    company: "CloudScale Systems",
-    department: "Engineering",
-    location: "Delhi NCR",
-    workMode: "On-site",
-    skills: "Java, Spring Boot, AWS",
-    salary: "₹12-20 LPA",
-    salaryMin: "12",
-    salaryMax: "20",
-    salaryVisible: true,
-    experience: "3-6 years",
-    education: "Bachelor's in CS",
-    jobType: "Full-time",
-    openings: 4,
-    openingsVisible: false,
-    applicants: 78,
-    shortlisted: 19,
-    interviewed: 9,
-    offered: 2,
-    views: 1876,
-    applicationRate: "4.2%",
-    postedDate: "2024-01-15",
-    closingDate: "2024-02-15",
-    daysActive: 10,
-    status: "Active",
-    priority: "High",
-    performance: "Low",
-    description: "Build scalable backend systems for our cloud platform...",
-    responsibilities: "• Backend development\n• API design\n• System architecture",
-    requirements: "• 3+ years Java\n• Spring Boot expertise\n• AWS knowledge",
-    benefits: "• Competitive salary\n• Insurance\n• Career growth",
-    recruiterName: "Priya Sharma",
-    recruiterEmail: "priya@cloudscale.com",
-    recruiterPhone: "+91 76543 21098",
-    recruiterVisible: true,
-    screeningQuestions: "Rate your AWS expertise from 1-10\nDo you have experience with microservices?",
-  },
-];
-
 export default function JobPosting() {
-  const [jobData, setJobData] = useState(initialJobData);
-  const [filteredData, setFilteredData] = useState(initialJobData);
+  const [jobData, setJobData] = useState<JobPosting[]>([]);
+  const [filteredData, setFilteredData] = useState<JobPosting[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [previewJob, setPreviewJob] = useState<any>(null);
+  const [previewJob, setPreviewJob] = useState<JobPosting | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   // Filters
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [workModeFilter, setWorkModeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Load job postings from Firestore
+  useEffect(() => {
+    loadJobPostings();
+  }, []);
+
+  const loadJobPostings = async () => {
+    try {
+      setIsLoading(true);
+      const jobPostings = await getAllJobPostings();
+      setJobData(jobPostings);
+      setFilteredData(jobPostings);
+    } catch (error) {
+      console.error("Error loading job postings:", error);
+      alert("Error loading job postings");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Export to CSV function
   const handleExportData = () => {
@@ -363,7 +191,7 @@ export default function JobPosting() {
     dept: string,
     mode: string,
     status: string,
-    baseList: typeof jobData = jobData
+    baseList: JobPosting[] = jobData
   ) => {
     let filtered = baseList;
 
@@ -392,50 +220,52 @@ export default function JobPosting() {
   };
 
   // Add new job
-  const handleAddJob = (newJob: any) => {
-    const jobWithId = {
-      ...newJob,
-      id: jobData.length + 1,
-      salary: newJob.salaryVisible ? `₹${newJob.salaryMin}-${newJob.salaryMax} LPA` : "Not Disclosed",
-      applicants: 0,
-      shortlisted: 0,
-      interviewed: 0,
-      offered: 0,
-      views: 0,
-      applicationRate: "0%",
-      postedDate: new Date().toISOString().split('T')[0],
-      daysActive: 0,
-      status: newJob.isDraft ? "Draft" : "Active",
-      performance: "Low",
-    };
-    const updatedJobs = [jobWithId, ...jobData];
-    setJobData(updatedJobs);
-    applyFilters(searchQuery, departmentFilter, workModeFilter, statusFilter, updatedJobs);
-    setIsDialogOpen(false);
+  const handleAddJob = async (newJob: JobPosting) => {
+    try {
+      // Reload job postings to get the latest data including the new job
+      await loadJobPostings();
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error("Error adding job:", error);
+    }
   };
 
   // Delete job
-  const handleDeleteJob = (id: number) => {
+  const handleDeleteJob = async (id: string) => {
     if (confirm("Are you sure you want to delete this job posting?")) {
-      const updatedJobs = jobData.filter(job => job.id !== id);
-      setJobData(updatedJobs);
-      applyFilters(searchQuery, departmentFilter, workModeFilter, statusFilter, updatedJobs);
+      try {
+        await deleteJobPosting(id);
+        // Remove from local state
+        const updatedJobs = jobData.filter(job => job.id !== id);
+        setJobData(updatedJobs);
+        applyFilters(searchQuery, departmentFilter, workModeFilter, statusFilter, updatedJobs);
+      } catch (error) {
+        console.error("Error deleting job:", error);
+        alert("Error deleting job posting");
+      }
     }
   };
 
   // Close job
-  const handleCloseJob = (id: number) => {
+  const handleCloseJob = async (id: string) => {
     if (confirm("Are you sure you want to close this job posting?")) {
-      const updatedJobs = jobData.map(job => 
-        job.id === id ? { ...job, status: "Closed" } : job
-      );
-      setJobData(updatedJobs);
-      applyFilters(searchQuery, departmentFilter, workModeFilter, statusFilter, updatedJobs);
+      try {
+        await updateJobPosting(id, { status: "Closed" });
+        // Update local state
+        const updatedJobs = jobData.map(job => 
+          job.id === id ? { ...job, status: "Closed" } : job
+        );
+        setJobData(updatedJobs);
+        applyFilters(searchQuery, departmentFilter, workModeFilter, statusFilter, updatedJobs);
+      } catch (error) {
+        console.error("Error closing job:", error);
+        alert("Error closing job posting");
+      }
     }
   };
 
   // Preview job
-  const handlePreviewJob = (job: any) => {
+  const handlePreviewJob = (job: JobPosting) => {
     setPreviewJob(job);
   };
 
@@ -443,7 +273,7 @@ export default function JobPosting() {
     { 
       header: "Job Title", 
       accessor: "title",
-      cell: (value: string, row: any) => (
+      cell: (value: string, row: JobPosting) => (
         <div className="min-w-[220px]">
           <div className="font-semibold text-foreground mb-1">{value}</div>
           <div className="text-xs text-muted-foreground mb-2">{row.company}</div>
@@ -470,7 +300,7 @@ export default function JobPosting() {
     { 
       header: "Location & Experience", 
       accessor: "location",
-      cell: (value: string, row: any) => (
+      cell: (value: string, row: JobPosting) => (
         <div className="min-w-[140px]">
           <div className="text-sm text-muted-foreground">{value}</div>
           <div className="text-xs text-muted-foreground mt-1">{row.experience}</div>
@@ -480,7 +310,7 @@ export default function JobPosting() {
     { 
       header: "Openings", 
       accessor: "openings",
-      cell: (value: number, row: any) => (
+      cell: (value: number, row: JobPosting) => (
         <div className="text-center">
           <span className="font-semibold text-lg">{value}</span>
           {row.openingsVisible ? (
@@ -497,7 +327,7 @@ export default function JobPosting() {
     {
       header: "Applications",
       accessor: "applicants",
-      cell: (value: number, row: any) => (
+      cell: (value: number, row: JobPosting) => (
         <div className="min-w-[140px]">
           <div className="font-semibold text-primary text-sm mb-1">{value} Applied</div>
           <div className="text-xs text-muted-foreground">
@@ -509,7 +339,7 @@ export default function JobPosting() {
     {
       header: "Performance",
       accessor: "views",
-      cell: (value: number, row: any) => (
+      cell: (value: number, row: JobPosting) => (
         <div className="min-w-[120px]">
           <div className="text-sm font-semibold mb-1">{value.toLocaleString()} Views</div>
           <div className="text-xs text-muted-foreground mb-1">{row.applicationRate} rate</div>
@@ -529,10 +359,10 @@ export default function JobPosting() {
     { 
       header: "Salary", 
       accessor: "salary",
-      cell: (value: string, row: any) => (
+      cell: (value: string, row: JobPosting) => (
         <div>
           {row.salaryVisible ? (
-            <span className="font-semibold text-green-600 text-sm">{value}</span>
+            <span className="font-semibold text-green-600 text-sm">₹{row.salaryMin}-{row.salaryMax} LPA</span>
           ) : (
             <div className="flex items-center gap-1 text-muted-foreground text-sm">
               <EyeOff className="w-3 h-3" />
@@ -554,7 +384,7 @@ export default function JobPosting() {
     {
       header: "Actions",
       accessor: "id",
-      cell: (value: number, row: any) => (
+      cell: (value: string, row: JobPosting) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="ghost">
@@ -676,14 +506,22 @@ export default function JobPosting() {
       </FilterBar>
 
       {/* Data Table */}
-      <DataTable columns={columns} data={filteredData} />
+      {isLoading ? (
+        <div className="flex justify-center items-center py-8">
+          <div className="text-muted-foreground">Loading job postings...</div>
+        </div>
+      ) : (
+        <>
+          <DataTable columns={columns} data={filteredData} />
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
-        <p className="text-sm text-muted-foreground">
-          Showing <span className="font-semibold">{filteredData.length}</span> of <span className="font-semibold">{jobData.length}</span> jobs
-        </p>
-      </div>
+          {/* Pagination */}
+          <div className="flex items-center justify-between mt-6">
+            <p className="text-sm text-muted-foreground">
+              Showing <span className="font-semibold">{filteredData.length}</span> of <span className="font-semibold">{jobData.length}</span> jobs
+            </p>
+          </div>
+        </>
+      )}
 
       {/* New Job Dialog */}
       <NewJobDialog 
@@ -712,7 +550,7 @@ export default function JobPosting() {
                 {previewJob.salaryVisible && (
                   <Badge variant="default" className="bg-green-600">
                     <IndianRupee className="w-3 h-3 mr-1" />
-                    {previewJob.salary}
+                    ₹{previewJob.salaryMin}-{previewJob.salaryMax} LPA
                   </Badge>
                 )}
                 {previewJob.openingsVisible && (

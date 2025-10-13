@@ -36,15 +36,17 @@ import {
   UserCheck,
   EyeOff
 } from "lucide-react";
+import { createJobPosting, JobPosting } from "@/pages/Recruitment/Services/jobPostingService";
 
 interface NewJobDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (job: any) => void;
+  onSubmit: (job: JobPosting) => void;
 }
 
 export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps) {
   const [currentTab, setCurrentTab] = useState("basic");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     // Basic Info
     title: "",
@@ -85,38 +87,70 @@ export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps
     openingsVisible: true,
   });
 
-  const handleSubmit = (isDraft: boolean = false) => {
-    onSubmit({ ...formData, isDraft });
-    // Reset form
-    setFormData({
-      title: "",
-      company: "",
-      department: "",
-      location: "",
-      workMode: "Hybrid",
-      jobType: "Full-time",
-      openings: "1",
-      experience: "",
-      education: "",
-      skills: "",
-      salaryMin: "",
-      salaryMax: "",
-      salaryVisible: true,
-      description: "",
-      responsibilities: "",
-      requirements: "",
-      benefits: "",
-      closingDate: "",
-      priority: "Normal",
-      screeningQuestions: "",
-      isDraft: false,
-      recruiterName: "",
-      recruiterEmail: "",
-      recruiterPhone: "",
-      recruiterVisible: true,
-      openingsVisible: true,
-    });
-    setCurrentTab("basic");
+  const handleSubmit = async (isDraft: boolean = false) => {
+    setIsSubmitting(true);
+    try {
+      const jobData = {
+        ...formData,
+        openings: parseInt(formData.openings) || 1,
+        applicants: 0,
+        shortlisted: 0,
+        interviewed: 0,
+        offered: 0,
+        views: 0,
+        applicationRate: "0%",
+        postedDate: new Date().toISOString().split('T')[0],
+        daysActive: 0,
+        status: isDraft ? "Draft" : "Active",
+        performance: "Low",
+        isDraft,
+      };
+
+      // Create job posting in Firestore
+      const jobId = await createJobPosting(jobData);
+      
+      // Call the onSubmit callback with the complete job data
+      onSubmit({
+        id: jobId,
+        ...jobData,
+      });
+
+      // Reset form
+      setFormData({
+        title: "",
+        company: "",
+        department: "",
+        location: "",
+        workMode: "Hybrid",
+        jobType: "Full-time",
+        openings: "1",
+        experience: "",
+        education: "",
+        skills: "",
+        salaryMin: "",
+        salaryMax: "",
+        salaryVisible: true,
+        description: "",
+        responsibilities: "",
+        requirements: "",
+        benefits: "",
+        closingDate: "",
+        priority: "Normal",
+        screeningQuestions: "",
+        isDraft: false,
+        recruiterName: "",
+        recruiterEmail: "",
+        recruiterPhone: "",
+        recruiterVisible: true,
+        openingsVisible: true,
+      });
+      setCurrentTab("basic");
+    } catch (error) {
+      console.error("Error submitting job:", error);
+      alert("Error creating job posting. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (field: string, value: string | boolean) => {
@@ -676,12 +710,23 @@ export function NewJobDialog({ open, onOpenChange, onSubmit }: NewJobDialogProps
                 ← Back to Edit
               </Button>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => handleSubmit(true)}>
-                  Save as Draft
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleSubmit(true)}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Saving..." : "Save as Draft"}
                 </Button>
-                <Button onClick={() => handleSubmit(false)}>
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Publish Job
+                <Button 
+                  onClick={() => handleSubmit(false)}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Publishing..." : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Publish Job
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
