@@ -54,7 +54,7 @@ const CTA = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             {[
-              { icon: Users, label: "Students", action: "Build Your Profile", link: "/student" },
+              { icon: Users, label: "Students", action: "Build Your Profile", link: "/student/resume-upload" },
               { icon: Briefcase, label: "Recruiters", action: "Post Jobs" , link: "/Recruitment"},
               { icon: BarChart3, label: "Placement Cell", action: "Manage Drives", link: "/placement" },
             ].map((item, index) => (
