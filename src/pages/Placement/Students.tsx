@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/Placement/PageHeader";
 import { FilterBar } from "@/components/Placement/FilterBar";
 import { DataTable } from "@/components/Placement/Datatable";
@@ -10,49 +10,117 @@ import { CheckCircle, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { BulkUploadDialog } from "@/components/Placement/BulkUploadDialog";
 import { SendNotificationDialog } from "@/components/Placement/SendNotificationDialog";
+import { StudentDetailsDialog } from "@/components/Placement/StudentDetailsDialog";
+import { db } from "@/firebaseConfig";
+import { collection, onSnapshot, updateDoc, addDoc, doc, query, orderBy } from "firebase/firestore";
 
 interface Student {
   id: string;
   name: string;
   branch: string;
   skills: string[];
-  verificationStatus: "verified" | "unverified" | "pending";
-  email?: string;
-  rollNo?: string;
+  verification_status: "verified" | "unverified" | "pending";
+  email: string;
+  reg_no: string;
 }
 
-const mockStudents: Student[] = [
-  { id: "1", name: "Rahul Sharma", branch: "Computer Science", skills: ["React", "Node.js", "Python"], verificationStatus: "verified" },
-  { id: "2", name: "Priya Patel", branch: "Electronics", skills: ["VLSI", "Embedded Systems"], verificationStatus: "verified" },
-  { id: "3", name: "Amit Kumar", branch: "Mechanical", skills: ["CAD", "SolidWorks", "ANSYS"], verificationStatus: "unverified" },
-  { id: "4", name: "Sneha Reddy", branch: "Computer Science", skills: ["Java", "Spring Boot", "AWS"], verificationStatus: "pending" },
-  { id: "5", name: "Vikram Singh", branch: "Civil", skills: ["AutoCAD", "Revit", "3D Modeling"], verificationStatus: "verified" },
-];
-
 export default function Students() {
-  const [students, setStudents] = useState<Student[]>(mockStudents);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
+  // Fetch students in real-time
+  useEffect(() => {
+    const studentsRef = collection(db, "students");
+    const q = query(studentsRef, orderBy("Name", "asc")); // Firestore field "Name"
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const studentsData = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.Name || "",
+            branch: data.Branch || "",
+            reg_no: data.RegNo || "",
+            email: data.Email || "",
+            skills: data.Skills
+              ? Array.isArray(data.Skills)
+                ? data.Skills
+                : [data.Skills]
+              : [],
+            verification_status: data.verification_status
+              ? (data.verification_status.toLowerCase() as "verified" | "unverified" | "pending")
+              : "unverified",
+          } as Student;
+        });
+        setStudents(studentsData);
+        setLoading(false);
+      },
+      (error) => {
+        toast.error(`Failed to fetch students: ${error.message}`);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Filter students
   const filteredStudents = students.filter((student) => {
     const matchesBranch = selectedBranch === "all" || student.branch === selectedBranch;
-    const matchesStatus = selectedStatus === "all" || student.verificationStatus === selectedStatus;
-    const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          student.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesStatus = selectedStatus === "all" || student.verification_status === selectedStatus;
+    const matchesSearch =
+      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.skills.some((skill) => skill.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesBranch && matchesStatus && matchesSearch;
   });
 
-  const handleStudentsUploaded = (newStudents: Student[]) => {
-    setStudents(prev => [...prev, ...newStudents]);
+  // Toggle verification status
+  const handleToggleVerification = async (student: Student) => {
+    try {
+      const newStatus = student.verification_status === "verified" ? "unverified" : "verified";
+      const studentDoc = doc(db, "students", student.id);
+      await updateDoc(studentDoc, { verification_status: newStatus });
+      toast.success(`${student.name} is now ${newStatus}`);
+    } catch (error: any) {
+      toast.error(`Failed to update verification: ${error.message}`);
+    }
   };
 
-  const handleVerify = (studentName: string) => {
-    toast.success(`${studentName} has been verified successfully!`);
+  const handleView = (student: Student) => {
+    setSelectedStudent(student);
+    setDetailsOpen(true);
   };
 
-  const handleView = (studentName: string) => {
-    toast.info(`Viewing details for ${studentName}`);
+  // Handle bulk upload
+  const handleStudentsUploaded = async (newStudents: any[]) => {
+    try {
+      const batchPromises = newStudents.map((s) =>
+        addDoc(collection(db, "students"), {
+          Name: s.name || s.Name || "",
+          Email: s.email || s.Email || "",
+          RegNo: s.reg_no || s.RegNo || "",
+          Branch: s.branch || s.Branch || "",
+          Skills: s.skills || s.Skills
+            ? Array.isArray(s.skills || s.Skills)
+              ? s.skills || s.Skills
+              : [s.skills || s.Skills]
+            : [],
+          verification_status: "unverified",
+        })
+      );
+
+      await Promise.all(batchPromises);
+      toast.success(`${newStudents.length} students uploaded successfully!`);
+    } catch (error: any) {
+      toast.error(`Failed to upload students: ${error.message}`);
+    }
   };
 
   const columns = [
@@ -71,25 +139,23 @@ export default function Students() {
         </div>
       ),
     },
+    { key: "email", header: "Email" },
+    { key: "reg_no", header: "Reg No" },
     {
-      key: "verificationStatus",
+      key: "verification_status",
       header: "Status",
       render: (student: Student) => (
         <Badge
           variant={
-            student.verificationStatus === "verified"
+            student.verification_status === "verified"
               ? "default"
-              : student.verificationStatus === "pending"
+              : student.verification_status === "pending"
               ? "outline"
               : "destructive"
           }
-          className={
-            student.verificationStatus === "verified"
-              ? "bg-success text-success-foreground"
-              : ""
-          }
+          className={student.verification_status === "verified" ? "bg-success text-success-foreground" : ""}
         >
-          {student.verificationStatus}
+          {student.verification_status}
         </Badge>
       ),
     },
@@ -98,25 +164,18 @@ export default function Students() {
       header: "Actions",
       render: (student: Student) => (
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => handleView(student)}>
+            <Eye className="w-4 h-4 mr-1" /> View
+          </Button>
           <Button
             size="sm"
-            variant="outline"
-            onClick={() => handleView(student.name)}
+            variant={student.verification_status === "verified" ? "destructive" : "default"}
+            className={student.verification_status !== "verified" ? "bg-success hover:bg-success/90" : ""}
+            onClick={() => handleToggleVerification(student)}
           >
-            <Eye className="w-4 h-4 mr-1" />
-            View
+            <CheckCircle className="w-4 h-4 mr-1" />
+            {student.verification_status === "verified" ? "Unverify" : "Verify"}
           </Button>
-          {student.verificationStatus !== "verified" && (
-            <Button
-              size="sm"
-              variant="default"
-              className="bg-success hover:bg-success/90"
-              onClick={() => handleVerify(student.name)}
-            >
-              <CheckCircle className="w-4 h-4 mr-1" />
-              Verify
-            </Button>
-          )}
         </div>
       ),
     },
@@ -168,8 +227,18 @@ export default function Students() {
       </FilterBar>
 
       <div className="mt-6">
-        <DataTable data={filteredStudents} columns={columns} />
+        {loading ? (
+          <div className="text-center py-8">Loading students...</div>
+        ) : (
+          <DataTable data={filteredStudents} columns={columns} />
+        )}
       </div>
+
+      <StudentDetailsDialog
+        student={selectedStudent}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+      />
     </div>
   );
 }

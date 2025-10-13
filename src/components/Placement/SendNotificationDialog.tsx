@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
-import emailjs from "emailjs-com";
+import { db } from "@/firebaseConfig";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 interface Student {
   id: string;
@@ -22,6 +23,7 @@ export function SendNotificationDialog({ students }: SendNotificationDialogProps
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
+  const [manualEmails, setManualEmails] = useState("");
   const [sending, setSending] = useState(false);
 
   const studentsWithEmail = students.filter(s => s.email);
@@ -38,35 +40,43 @@ export function SendNotificationDialog({ students }: SendNotificationDialogProps
       return;
     }
 
-    if (selectedEmails.length === 0) {
-      toast.error("Please select at least one student");
+    const manualEmailList = manualEmails
+      .split(/[,;\n]/)
+      .map(e => e.trim())
+      .filter(e => e && e.includes('@'));
+    
+    const allEmails = [...new Set([...selectedEmails, ...manualEmailList])];
+
+    if (allEmails.length === 0) {
+      toast.error("Please select or enter at least one email");
       return;
     }
 
     setSending(true);
 
     try {
-      // Note: Users need to configure EmailJS with their service ID, template ID, and user ID
-      // This is a placeholder implementation
-      toast.info("Email service not configured. Please set up EmailJS credentials.");
-      
-      // Uncomment and configure when EmailJS is set up:
-      // await emailjs.send(
-      //   'YOUR_SERVICE_ID',
-      //   'YOUR_TEMPLATE_ID',
-      //   {
-      //     to_emails: selectedEmails.join(','),
-      //     message: message,
-      //   },
-      //   'YOUR_USER_ID'
-      // );
-      
-      toast.success(`Notification sent to ${selectedEmails.length} student(s)!`);
+      const notificationsRef = collection(db, "notifications");
+
+      // Create a notification document for each recipient
+      const promises = allEmails.map(email =>
+        addDoc(notificationsRef, {
+          email,
+          message,
+          timestamp: serverTimestamp(),
+          type: "email", // can later change to push, SMS, etc.
+        })
+      );
+
+      await Promise.all(promises);
+
+      toast.success(`Notification sent to ${allEmails.length} recipient(s)!`);
       setMessage("");
       setSelectedEmails([]);
+      setManualEmails("");
       setOpen(false);
-    } catch (error) {
-      toast.error("Failed to send notifications");
+    } catch (error: any) {
+      console.error("Send notification error:", error);
+      toast.error(error.message || "Failed to send notifications");
     } finally {
       setSending(false);
     }
@@ -93,6 +103,17 @@ export function SendNotificationDialog({ students }: SendNotificationDialogProps
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Type your notification message..."
               rows={5}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manual-emails">Manual Email Entry (comma or newline separated)</Label>
+            <Textarea
+              id="manual-emails"
+              value={manualEmails}
+              onChange={(e) => setManualEmails(e.target.value)}
+              placeholder="email1@example.com, email2@example.com&#10;or&#10;email3@example.com"
+              rows={3}
             />
           </div>
 

@@ -5,7 +5,9 @@ import {
   Briefcase, 
   FileText, 
   BarChart3, 
-  MessageSquare, 
+  MessageSquare,
+  Calendar,
+  TrendingUp,
   Settings 
 } from "lucide-react";
 
@@ -14,7 +16,8 @@ const navItems = [
   { to: "/placement/students", icon: Users, label: "Students" },
   { to: "/placement/recruiters", icon: Briefcase, label: "Recruiters" },
   { to: "/placement/jobs", icon: FileText, label: "Jobs" },
-  { to: "/placement/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/placement/calendar", icon: Calendar, label: "Calendar" },
+  { to: "/placement/recruitment-tracking", icon: TrendingUp, label: "Recruitment Tracking" },
   { to: "/placement/communication", icon: MessageSquare, label: "Communication" },
   { to: "/placement/settings", icon: Settings, label: "Settings" },
 ];
