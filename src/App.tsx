@@ -13,7 +13,7 @@ import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/firebaseConfig";
 
-// Student dashboard imports
+// Student dashboard import
 import Student from "./pages/Student/Student"; 
 import JobsStudent from "./pages/Student/Jobs";
 import AppliedJobs from "./pages/Student/AppliedJobs";
